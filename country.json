@@ -1,0 +1,132 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Country Management API",
+    "description": "API for retrieving country information by country code in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Personalized Server Configuration",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocol (http or https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Server hostname or IP address"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Server port number"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "API base path"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": [ ]
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key for authentication"
+      }
+    }
+  },
+  "paths": {
+    "/country/{code_country}": {
+      "get": {
+        "summary": "Get Country",
+        "description": "Retrieve a specific country by its code.\n\nThe endpoint searches for a case-insensitive match of the sanitized country code.\nReturns 404 if no matching record exists.\n",
+        "operationId": "get_country",
+        "tags": [
+          "Countries"
+        ],
+        "parameters": [
+          {
+            "name": "code_country",
+            "in": "path",
+            "required": true,
+            "description": "The country code to search for (e.g., 'ES', 'FR')",
+            "schema": {
+              "type": "string",
+              "example": "ES"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Country found successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record found successfully",
+                  "data": {
+                    "odoo_id": 1,
+                    "erp_id": 10001,
+                    "name": "Spain"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - The country with this code does not exist",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "RECORD_NOT_FOUND",
+                  "message": "Record not found: ES"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Unexpected error occurred",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

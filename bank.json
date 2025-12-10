@@ -1,0 +1,257 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Bank Account Management API",
+    "description": "API for retrieving and creating bank accounts associated with suppliers in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error, including invalid checksum digits (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Personalized Server Configuration",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocol (http or https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Server hostname or IP address"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Server port number"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "API base path"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": [ ]
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key for authentication"
+      }
+    }
+  },
+  "paths": {
+    "/bank/{partner_id}": {
+      "get": {
+        "summary": "Get Bank Account",
+        "description": "Retrieve a specific bank account for a given partner by account number.\n\nThe endpoint searches for an exact match of the sanitized account number\nassociated with the specified partner. Returns 404 if no matching record exists.\n",
+        "operationId": "get_bank_number",
+        "tags": [
+          "Bank Accounts"
+        ],
+        "parameters": [
+          {
+            "name": "partner_id",
+            "in": "path",
+            "required": true,
+            "description": "The Odoo database ID of the partner",
+            "schema": {
+              "type": "integer",
+              "example": 45
+            }
+          },
+          {
+            "name": "acc_number",
+            "in": "query",
+            "required": true,
+            "description": "The bank account number to search for (will be sanitized)",
+            "schema": {
+              "type": "string",
+              "example": "ES9121000418450200051332"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bank account found successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record found successfully",
+                  "data": {
+                    "odoo_id": 123,
+                    "erp_id": 70001,
+                    "name": "ES9121000418450200051332"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - The bank account does not exist for this partner",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "RECORD_NOT_FOUND",
+                  "message": "Record not found: 45 - ES9121000418450200051332"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Unexpected error occurred",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/banks": {
+      "post": {
+        "summary": "Create Bank Account",
+        "description": "Create a new bank account for a supplier.\n\nThe endpoint automatically identifies and assigns the bank from the account number\nif possible. Returns 409 if a duplicate account already exists.\n",
+        "operationId": "create_bank_number",
+        "tags": [
+          "Bank Accounts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "acc_number": "ES7620770024003102575766",
+                "partner_id": 45,
+                "pnt_erp_id": 70003
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bank account created successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 124,
+                    "erp_id": 70003,
+                    "values": {
+                      "acc_number": "ES7620770024003102575766",
+                      "partner_id": 45,
+                      "pnt_erp_id": 70003
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters, validation errors, or invalid checksum digits.\nThis error occurs when:\n- Required fields are missing or empty\n- Field values don't meet validation rules\n- The bank account number has invalid checksum digits (IBAN validation failed)\n",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "validation_error": {
+                    "summary": "Validation error for empty field",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "type": "value_error",
+                          "loc": [
+                            "acc_number"
+                          ],
+                          "msg": "String should have at least 1 character",
+                          "input": ""
+                        }
+                      ]
+                    }
+                  },
+                  "invalid_checksum": {
+                    "summary": "Invalid checksum digits in bank account number",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Invalid checksum digits"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - A bank account with this number already exists for this partner",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_KEY_VALUE",
+                  "message": "Record with provided key already exists: duplicate key value violates unique constraint"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Unexpected error occurred",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
