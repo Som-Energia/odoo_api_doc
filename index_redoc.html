@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>odoo_api_doc — API Documentation</title>
+  </head>
+  <body>
+    <h1>Documentació de l'API — som-energia / odoo_api_doc</h1>
+    <ul>
+      <li><a href="bank.json">Bank API (bank.json)</a></li>
+      <li><a href="city.json">City API (city.json)</a></li>
+      <li><a href="common.json">Common API (common.json)</a></li>
+      <li><a href="country.json">Country API (country.json)</a></li>
+      <li><a href="state.json">State API (state.json)</a></li>
+    </ul>
+
+    <hr/>
+
+    <div id="redoc-container" style="margin: 0 auto; max-width: 900px;"></div>
+
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+    <script>
+      // Aquí es pot definir quina spec carregar per defecte (opcional)
+      // Per exemple, carregar bank.json per defecte:
+      const specUrl = './bank.json';
+      Redoc.init(specUrl, {}, document.getElementById('redoc-container'));
+    </script>
+  </body>
+</html>

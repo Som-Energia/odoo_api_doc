@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>odoo_api_doc — API Documentation (Swagger UI)</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+  </head>
+  <body>
+    <h1>Documentació de l'API — som-energia / odoo_api_doc</h1>
+    <label for="spec-select">Tria un fitxer JSON:</label>
+    <select id="spec-select">
+      <option value="./bank.json">bank.json</option>
+      <option value="./city.json">city.json</option>
+      <option value="./common.json">common.json</option>
+      <option value="./country.json">country.json</option>
+      <option value="./state.json">state.json</option>
+    </select>
+
+    <div id="swagger-ui" style="margin:0;"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-standalone-preset.js"></script>
+    <script>
+      function loadSpec(url) {
+        window.ui = SwaggerUIBundle({
+          url: url,
+          dom_id: '#swagger-ui',
+          presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIStandalonePreset
+          ],
+          layout: "BaseLayout"
+        });
+      }
+
+      document.getElementById('spec-select')
+        .addEventListener('change', (e) => loadSpec(e.target.value));
+
+      // Carrega per defecte el primer element
+      loadSpec('./bank.json');
+    </script>
+  </body>
+</html>
+
