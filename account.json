@@ -141,9 +141,6 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AccountCreateRequest"
-              },
               "example": {
                 "name": "Sales Revenue",
                 "code": "700000",
