@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Bank Account Management API",
-    "description": "API for retrieving and creating bank accounts associated with suppliers in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error, including invalid checksum digits (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "Account Management API",
+    "description": "API for retrieving and creating accounting accounts in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Multi-Company Behavior\nWhen creating an account, the API automatically creates the same account (without ERP ID) in all other companies where it doesn't exist.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -52,39 +52,29 @@
     }
   },
   "paths": {
-    "/bank/{partner_id}": {
+    "/account/{code}": {
       "get": {
-        "summary": "Get Bank Account",
-        "description": "Retrieve a specific bank account for a given partner by account number.\n\nThe endpoint searches for an exact match of the sanitized account number\nassociated with the specified partner. Returns 404 if no matching record exists.\n",
-        "operationId": "get_bank_number",
+        "summary": "Get Account",
+        "description": "Retrieve a specific account by its code.\n\nThe endpoint searches for an exact match of the sanitized account code.\nWhitespace is trimmed from the code before searching.\nReturns 404 if no matching record exists.\n",
+        "operationId": "get_account",
         "tags": [
-          "Bank Accounts"
+          "Accounts"
         ],
         "parameters": [
           {
-            "name": "partner_id",
+            "name": "code",
             "in": "path",
             "required": true,
-            "description": "The Odoo database ID of the partner",
-            "schema": {
-              "type": "integer",
-              "example": 45
-            }
-          },
-          {
-            "name": "acc_number",
-            "in": "query",
-            "required": true,
-            "description": "The bank account number to search for (will be sanitized)",
+            "description": "The account code to search for (whitespace will be trimmed)",
             "schema": {
               "type": "string",
-              "example": "ES9121000418450200051332"
+              "example": "700000"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Bank account found successfully",
+            "description": "Account found successfully",
             "content": {
               "application/json": {
                 "example": {
@@ -92,8 +82,9 @@
                   "message": "Record found successfully",
                   "data": {
                     "odoo_id": 123,
-                    "erp_id": 70001,
-                    "name": "ES9121000418450200051332"
+                    "erp_id": 50001,
+                    "name": "700000",
+                    "company": "My Company"
                   }
                 }
               }
@@ -112,13 +103,13 @@
             }
           },
           "404": {
-            "description": "Not Found - The bank account does not exist for this partner",
+            "description": "Not Found - The account with this code does not exist",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
                   "error_code": "RECORD_NOT_FOUND",
-                  "message": "Record not found: 45 - ES9121000418450200051332"
+                  "message": "Record not found: 700000"
                 }
               }
             }
@@ -138,29 +129,32 @@
         }
       }
     },
-    "/banks": {
+    "/accounts": {
       "post": {
-        "summary": "Create Bank Account",
-        "description": "Create a new bank account for a supplier.\n\nThe endpoint automatically identifies and assigns the bank from the account number\nif possible. Returns 409 if a duplicate account already exists.\n",
-        "operationId": "create_bank_number",
+        "summary": "Create Account",
+        "description": "Create a new accounting account.\n\nThe endpoint validates the input data and creates a new account record.\nAdditionally, it automatically creates the same account (without ERP ID)\nin all other companies where it doesn't exist.\n\nReturns 409 if a duplicate account already exists.\n",
+        "operationId": "create_account",
         "tags": [
-          "Bank Accounts"
+          "Accounts"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateRequest"
+              },
               "example": {
-                "acc_number": "ES7620770024003102575766",
-                "partner_id": 45,
-                "pnt_erp_id": 70003
+                "name": "Sales Revenue",
+                "code": "700000",
+                "pnt_erp_id": 50001
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Bank account created successfully",
+            "description": "Account created successfully",
             "content": {
               "application/json": {
                 "example": {
@@ -168,46 +162,61 @@
                   "message": "Record created successfully",
                   "data": {
                     "odoo_id": 124,
-                    "erp_id": 70003,
+                    "erp_id": 50001,
                     "values": {
-                      "acc_number": "ES7620770024003102575766",
-                      "partner_id": 45,
-                      "pnt_erp_id": 70003
-                    }
+                      "name": "Sales Revenue",
+                      "code": "700000"
+                    },
+                    "new_accounts_by_company": [
+                      {
+                        "id": 125,
+                        "company": "Secondary Company",
+                        "pnt_erp_id": false
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input parameters, validation errors, or invalid checksum digits.\nThis error occurs when:\n- Required fields are missing or empty\n- Field values don't meet validation rules\n- The bank account number has invalid checksum digits (IBAN validation failed)\n",
+            "description": "Bad Request - Invalid input parameters or validation errors",
             "content": {
               "application/json": {
                 "examples": {
-                  "validation_error": {
-                    "summary": "Validation error for empty field",
+                  "missing_field": {
+                    "summary": "Missing required field",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
                       "validation_errors": [
                         {
-                          "type": "value_error",
+                          "type": "missing",
                           "loc": [
-                            "acc_number"
+                            "code"
+                          ],
+                          "msg": "Field required"
+                        }
+                      ]
+                    }
+                  },
+                  "invalid_value": {
+                    "summary": "Invalid field value",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "type": "string_too_short",
+                          "loc": [
+                            "name"
                           ],
                           "msg": "String should have at least 1 character",
                           "input": ""
                         }
                       ]
-                    }
-                  },
-                  "invalid_checksum": {
-                    "summary": "Invalid checksum digits in bank account number",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Invalid checksum digits"
                     }
                   }
                 }
@@ -227,13 +236,13 @@
             }
           },
           "409": {
-            "description": "Conflict - A bank account with this number already exists for this partner",
+            "description": "Conflict - An account with this ERP ID already exists",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
                   "error_code": "DUPLICATE_KEY_VALUE",
-                  "message": "Record with provided key already exists: duplicate key value violates unique constraint"
+                  "message": "Duplicate key value: duplicate key value violates unique constraint \"account_account_pnt_erp_id_uniq\""
                 }
               }
             }

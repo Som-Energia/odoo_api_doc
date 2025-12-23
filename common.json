@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Common Entity Management API",
-    "description": "API for retrieving Odoo records by ERP ID across multiple entity types\nand updating ERP IDs for existing records.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Allowed Entities\n- `country`: res.country\n- `state`: res.country.state\n- `city`: res.city\n- `bank`: res.bank\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `INVALID_ENTITY`: Invalid entity type (400 status)\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `DUPLICATE_ERP_ID`: ERP ID already exists (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "description": "API for retrieving Odoo records by ERP ID across multiple entity types\nand updating ERP IDs for existing records.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Allowed Entities\n- `account`: account.account\n- `country`: res.country\n- `state`: res.country.state\n- `city`: res.city\n- `bank`: res.bank\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `INVALID_ENTITY`: Invalid entity type (400 status)\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `DUPLICATE_ERP_ID`: ERP ID already exists (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -38,7 +38,7 @@
   ],
   "security": [
     {
-      "ApiKeyAuth": [ ]
+      "ApiKeyAuth": []
     }
   ],
   "components": {
@@ -69,6 +69,7 @@
                   "success": true,
                   "message": "Entities retrieved successfully",
                   "data": {
+                    "account": "account.account",
                     "country": "res.country",
                     "state": "res.country.state",
                     "city": "res.city",
@@ -118,10 +119,11 @@
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "The entity type (country, state, city, or bank)",
+            "description": "The entity type (account, country, state, city, or bank)",
             "schema": {
               "type": "string",
               "enum": [
+                "account",
                 "country",
                 "state",
                 "city",
@@ -210,7 +212,7 @@
       }
     },
     "/entity/{entity}/{odoo_id}/{erp_id}": {
-      "post": {
+      "patch": {
         "summary": "Set ERP ID",
         "description": "Set the ERP ID for a given Odoo record.\n\nReturns 409 if the ERP ID already exists for another record.\n",
         "operationId": "set_erp_id",
@@ -222,10 +224,11 @@
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "The entity type (country, state, city, or bank)",
+            "description": "The entity type (account, country, state, city, or bank)",
             "schema": {
               "type": "string",
               "enum": [
+                "account",
                 "country",
                 "state",
                 "city",
