@@ -84,7 +84,11 @@
                     "odoo_id": 123,
                     "erp_id": 50001,
                     "name": "700000",
-                    "company": "My Company"
+                    "company": "My Company",
+                    "metadata": {
+                      "code": "700000",
+                      "account_name": "Sales Revenue"
+                    }
                   }
                 }
               }
@@ -141,6 +145,9 @@
           "required": true,
           "content": {
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateRequest"
+              },
               "example": {
                 "name": "Sales Revenue",
                 "code": "700000",
