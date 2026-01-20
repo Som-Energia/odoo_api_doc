@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Partner Management API",
-    "description": "API for retrieving and creating partners (customers and suppliers) in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Partner Types\n- **Customer** (is_customer=True): Customer partners\n- **Supplier** (is_customer=False): Supplier partners\n- **Company** (is_company=True): Legal entities\n- **Individual** (is_company=False): Natural persons\n\n## Contact Types\n- **contact**: Regular contact (required for companies)\n- **invoice**: Invoicing address (required when parent_id is provided)\n\n## Validation Rules for Partner Creation\n\n### When is_company=True (Company):\n- `vat` is **required**\n- `type` must be **\"contact\"**\n- `parent_id` must **not** be set (cannot create company child contacts)\n- `comercial` **can** be set\n\n### When is_company=False (Individual):\n- `comercial` must **not** be set\n- `parent_id` **can** be set (for child contacts)\n\n### When parent_id is provided (Child Contact):\n- `type` must be **\"invoice\"**\n- Only valid for individuals (is_company=False)\n\n### Other Validations:\n- `pnt_erp_id` is **required** and must be > 0\n- `name` is **required** and must have at least 1 character (max 256)\n- `is_customer` and `is_company` are **required**\n- `lang` must be one of: \"en_GB\", \"es_ES\", \"ca_ES\"\n- All string fields are automatically trimmed (whitespace removed)\n- Extra fields not defined in the schema are rejected\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INVALID_FOREIGN_KEY`: Foreign key violation (400 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "API de Gestión de Partners",
+    "description": "API para obtener, crear y actualizar partners (clientes y proveedores) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Partner\n- **Cliente** (is_customer=True): Partners clientes\n- **Proveedor** (is_supplier=True): Partners proveedores\n- **Empresa** (is_company=True): Entidades jurídicas\n- **Particular** (is_company=False): Personas físicas\n\n## Tipos de Contacto\n- **contact**: Contacto regular (obligatorio para empresas)\n- **invoice**: Dirección de facturación (obligatorio cuando se proporciona parent_id)\n- **delivery**: Dirección de entrega\n- **other**: Otro tipo de dirección\n\n## Reglas de Validación para Creación de Partners\n\n### Cuando is_company=True (Empresa):\n- `vat` es **obligatorio**\n- `type` debe ser **\"contact\"**\n- `parent_id` **no** debe establecerse (no se pueden crear contactos hijos de empresa)\n- `comercial` **no** debe establecerse\n\n### Cuando is_company=False (Particular):\n- `comercial` **puede** establecerse\n- `parent_id` **puede** establecerse (para contactos hijos)\n\n### Cuando se proporciona parent_id (Contacto Hijo):\n- `type` debe ser **\"invoice\"**\n- Solo válido para particulares (is_company=False)\n\n### Otras Validaciones:\n- `pnt_erp_id` es **obligatorio** y debe ser > 0\n- `name` es **obligatorio** y debe tener al menos 1 carácter (máx. 256)\n- `is_customer`, `is_supplier` e `is_company` son **obligatorios**\n- `lang` debe ser uno de: \"en_GB\", \"es_ES\", \"ca_ES\"\n- Todos los campos de texto se recortan automáticamente (se eliminan espacios en blanco)\n- Los campos extra no definidos en el esquema son rechazados\n\n## Reglas de Validación para Actualización de Partners\n\n- Solo se permite establecer `is_customer` o `is_supplier` a True si actualmente están en False\n- El campo `comercial` solo puede establecerse cuando `is_company` es False\n- No se pueden modificar los campos `vat`, `is_company`, `type` ni `parent_id`\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -11,7 +11,7 @@
   "servers": [
     {
       "url": "{protocol}://{host}:{port}{basePath}",
-      "description": "Personalized Server Configuration",
+      "description": "Configuración Personalizada del Servidor",
       "variables": {
         "protocol": {
           "enum": [
@@ -19,19 +19,19 @@
             "https"
           ],
           "default": "http",
-          "description": "Protocol (http or https)"
+          "description": "Protocolo (http o https)"
         },
         "host": {
           "default": "localhost",
-          "description": "Server hostname or IP address"
+          "description": "Nombre de host o dirección IP del servidor"
         },
         "port": {
           "default": "8069",
-          "description": "Server port number"
+          "description": "Número de puerto del servidor"
         },
         "basePath": {
           "default": "/api/v1",
-          "description": "API base path"
+          "description": "Ruta base de la API"
         }
       }
     }
@@ -47,15 +47,15 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "API key for authentication"
+        "description": "API key para autenticación"
       }
     }
   },
   "paths": {
     "/partner/{ttype}/{vat_code}": {
       "get": {
-        "summary": "Get Partner by VAT",
-        "description": "Retrieve a specific partner by VAT code and type.\n\nThe endpoint searches for an exact match of the sanitized VAT code.\nWhitespace is trimmed from the code before searching.\nFilters results by company type (company or individual) and excludes child contacts.\nReturns 404 if no matching record exists.\n",
+        "summary": "Obtener Partner por VAT",
+        "description": "Obtiene un partner específico por código VAT y tipo.\n\nEl endpoint busca una coincidencia exacta del código VAT saneado.\nLos espacios en blanco se recortan del código antes de buscar.\nFiltra los resultados por tipo de empresa (empresa o particular) y excluye los contactos hijos.\nDevuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_partner",
         "tags": [
           "Partners"
@@ -65,7 +65,7 @@
             "name": "ttype",
             "in": "path",
             "required": true,
-            "description": "Partner type: 'company' for companies, 'other' for individuals",
+            "description": "Tipo de partner: 'company' para empresas, 'other' para particulares",
             "schema": {
               "type": "string",
               "enum": [
@@ -79,7 +79,7 @@
             "name": "vat_code",
             "in": "path",
             "required": true,
-            "description": "The VAT code to search for (whitespace will be trimmed)",
+            "description": "El código VAT a buscar (los espacios en blanco se recortarán)",
             "schema": {
               "type": "string",
               "example": "ESA12345678"
@@ -88,7 +88,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Partner found successfully",
+            "description": "Partner encontrado correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -98,8 +98,20 @@
                     {
                       "odoo_id": 123,
                       "erp_id": 50001,
-                      "name": "ESA12345678",
-                      "company": "My Company"
+                      "name": "Mi Empresa SL",
+                      "metadata": {
+                        "name": "Mi Empresa SL",
+                        "is_customer": true,
+                        "is_supplier": false,
+                        "is_company": true,
+                        "lang": "es_ES",
+                        "type": "contact",
+                        "vat": "ESA12345678",
+                        "street": "Calle Principal 123",
+                        "zip": "28001",
+                        "phone": "+34912345678",
+                        "email": "contacto@miempresa.com"
+                      }
                     }
                   ]
                 }
@@ -107,7 +119,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -119,7 +131,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The partner with this VAT code does not exist",
+            "description": "No encontrado - El partner con este código VAT no existe",
             "content": {
               "application/json": {
                 "example": {
@@ -131,7 +143,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -147,8 +159,8 @@
     },
     "/partner/contact/{parent_id}/{ttype}": {
       "get": {
-        "summary": "Get Partner Contacts",
-        "description": "Retrieve contacts of a specific partner by parent ID and contact type.\n\nThe endpoint searches for contacts that belong to the specified parent partner.\nFilters results by contact type (contact, invoice, delivery, other).\nReturns 404 if no matching contacts exist.\n",
+        "summary": "Obtener Contactos del Partner",
+        "description": "Obtiene los contactos de un partner específico por ID padre y tipo de contacto.\n\nEl endpoint busca contactos que pertenecen al partner padre especificado.\nFiltra los resultados por tipo de contacto (contact, invoice, delivery, other).\nDevuelve 404 si no existen contactos coincidentes.\n",
         "operationId": "get_partner_contact",
         "tags": [
           "Partners"
@@ -158,7 +170,7 @@
             "name": "parent_id",
             "in": "path",
             "required": true,
-            "description": "The Odoo ID of the parent partner",
+            "description": "El ID de Odoo del partner padre",
             "schema": {
               "type": "integer",
               "example": 123
@@ -168,7 +180,7 @@
             "name": "ttype",
             "in": "path",
             "required": true,
-            "description": "Contact type",
+            "description": "Tipo de contacto",
             "schema": {
               "type": "string",
               "enum": [
@@ -183,7 +195,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Contacts found successfully",
+            "description": "Contactos encontrados correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -193,8 +205,20 @@
                     {
                       "odoo_id": 456,
                       "erp_id": 50002,
-                      "name": "Invoice Contact",
-                      "company": "My Company"
+                      "name": "Contacto de Facturación",
+                      "metadata": {
+                        "name": "Contacto de Facturación",
+                        "is_customer": false,
+                        "is_supplier": false,
+                        "is_company": false,
+                        "lang": "es_ES",
+                        "type": "invoice",
+                        "street": "Calle Secundaria 45",
+                        "zip": "28002",
+                        "phone": "+34912345679",
+                        "email": "facturacion@miempresa.com",
+                        "parent_id": 123
+                      }
                     }
                   ]
                 }
@@ -202,7 +226,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -214,7 +238,7 @@
             }
           },
           "404": {
-            "description": "Not Found - No contacts found for this parent ID and type",
+            "description": "No encontrado - No se encontraron contactos para este ID padre y tipo",
             "content": {
               "application/json": {
                 "example": {
@@ -226,7 +250,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -242,8 +266,8 @@
     },
     "/partners": {
       "post": {
-        "summary": "Create Partner",
-        "description": "Create a new partner (customer or supplier, company or individual).\n\nThe endpoint validates the input data and creates a new partner record.\nHandles address resolution using code_ine/code_zip and sets defaults.\n\n### Validation Rules:\n\n**General**:\n- `pnt_erp_id` is required (> 0)\n- `name` is required (1-256 chars)\n- `is_customer` and `is_company` are required booleans\n\n**For Companies (is_company=True)**:\n- `vat` is required\n- `type` must be \"contact\"\n- `parent_id` must not be provided\n- `comercial` can be set\n\n**For Individuals (is_company=False)**:\n- `comercial` must not be set\n- `parent_id` can be provided for child contacts (requires type=\"invoice\")\n\n**When parent_id is provided**:\n- `type` must be \"invoice\"\n- Only valid for individuals (is_company=False)\n\nReturns 409 if a duplicate partner already exists.\n",
+        "summary": "Crear Partner",
+        "description": "Crea un nuevo partner (cliente o proveedor, empresa o particular).\n\nEl endpoint valida los datos de entrada y crea un nuevo registro de partner.\n\n### Reglas de Validación:\n\n**General**:\n- `pnt_erp_id` es obligatorio (> 0)\n- `name` es obligatorio (1-256 caracteres)\n- `is_customer`, `is_supplier` e `is_company` son booleanos obligatorios\n\n**Para Empresas (is_company=True)**:\n- `vat` es obligatorio\n- `type` debe ser \"contact\"\n- `parent_id` no debe proporcionarse\n- `comercial` no debe establecerse\n\n**Para Particulares (is_company=False)**:\n- `comercial` puede establecerse\n- `parent_id` puede proporcionarse para contactos hijos (requiere type=\"invoice\")\n\n**Cuando se proporciona parent_id**:\n- `type` debe ser \"invoice\"\n- Solo válido para particulares (is_company=False)\n\nDevuelve 409 si ya existe un partner duplicado.\n",
         "operationId": "create_partner",
         "tags": [
           "Partners"
@@ -258,6 +282,7 @@
                   "pnt_erp_id",
                   "name",
                   "is_customer",
+                  "is_supplier",
                   "is_company",
                   "lang",
                   "type"
@@ -265,20 +290,24 @@
                 "properties": {
                   "pnt_erp_id": {
                     "type": "integer",
-                    "description": "Unique identifier from the ERP system. Must be greater than 0."
+                    "description": "Identificador único del sistema ERP. Debe ser mayor que 0."
                   },
                   "name": {
                     "type": "string",
                     "maxLength": 256,
-                    "description": "Name of the partner."
+                    "description": "Nombre del partner."
                   },
                   "is_customer": {
                     "type": "boolean",
-                    "description": "Indicates if the partner is a customer."
+                    "description": "Indica si el partner es un cliente."
+                  },
+                  "is_supplier": {
+                    "type": "boolean",
+                    "description": "Indica si el partner es un proveedor."
                   },
                   "is_company": {
                     "type": "boolean",
-                    "description": "Indicates if the partner is a company."
+                    "description": "Indica si el partner es una empresa."
                   },
                   "lang": {
                     "type": "string",
@@ -287,7 +316,7 @@
                       "es_ES",
                       "ca_ES"
                     ],
-                    "description": "Language code."
+                    "description": "Código de idioma."
                   },
                   "type": {
                     "type": "string",
@@ -295,121 +324,128 @@
                       "contact",
                       "invoice"
                     ],
-                    "description": "Type of address."
+                    "description": "Tipo de dirección."
                   },
                   "vat": {
                     "type": "string",
                     "maxLength": 64,
-                    "description": "Tax Identification Number."
+                    "description": "Número de Identificación Fiscal (NIF/CIF)."
                   },
                   "street": {
                     "type": "string",
                     "maxLength": 256,
-                    "description": "Street address."
+                    "description": "Dirección."
                   },
                   "street2": {
                     "type": "string",
                     "maxLength": 256,
-                    "description": "Additional address information."
+                    "description": "Información adicional de dirección."
                   },
-                  "code_zip": {
+                  "country_id": {
+                    "type": "integer",
+                    "description": "ID del país en Odoo."
+                  },
+                  "state_id": {
+                    "type": "integer",
+                    "description": "ID de la provincia/estado en Odoo."
+                  },
+                  "city": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Ciudad."
+                  },
+                  "zip": {
                     "type": "string",
                     "maxLength": 24,
-                    "description": "ZIP code."
-                  },
-                  "code_ine": {
-                    "type": "string",
-                    "maxLength": 12,
-                    "description": "INE code for municipality."
+                    "description": "Código postal."
                   },
                   "phone": {
                     "type": "string",
                     "maxLength": 32,
-                    "description": "Phone number."
+                    "description": "Número de teléfono."
                   },
                   "mobile": {
                     "type": "string",
                     "maxLength": 32,
-                    "description": "Mobile number."
+                    "description": "Número de móvil."
                   },
                   "email": {
                     "type": "string",
                     "maxLength": 256,
-                    "description": "Email address."
+                    "description": "Dirección de correo electrónico."
                   },
                   "comercial": {
                     "type": "string",
                     "maxLength": 32,
-                    "description": "Commercial agent identifier."
+                    "description": "Identificador del agente comercial."
                   },
                   "comment": {
                     "type": "string",
                     "maxLength": 1000,
-                    "description": "Internal notes."
+                    "description": "Notas internas."
                   },
                   "parent_id": {
                     "type": "integer",
-                    "description": "Odoo ID of the parent partner."
+                    "description": "ID de Odoo del partner padre."
                   },
                   "property_payment_term_id": {
                     "type": "integer",
-                    "description": "Customer payment term ID."
+                    "description": "ID del plazo de pago de cliente."
                   },
                   "property_supplier_payment_term_id": {
                     "type": "integer",
-                    "description": "Supplier payment term ID."
+                    "description": "ID del plazo de pago de proveedor."
                   },
                   "property_inbound_payment_method_line_id": {
                     "type": "integer",
-                    "description": "Inbound payment method line ID."
+                    "description": "ID de la línea del método de pago entrante."
                   },
                   "property_outbound_payment_method_line_id": {
                     "type": "integer",
-                    "description": "Outbound payment method line ID."
+                    "description": "ID de la línea del método de pago saliente."
                   },
                   "property_account_position_id": {
                     "type": "integer",
-                    "description": "Fiscal position ID."
+                    "description": "ID de la posición fiscal."
                   },
                   "property_account_payable_id": {
                     "type": "integer",
-                    "description": "Account payable ID."
+                    "description": "ID de la cuenta a pagar."
                   },
                   "property_account_receivable_id": {
                     "type": "integer",
-                    "description": "Account receivable ID."
+                    "description": "ID de la cuenta a cobrar."
                   }
                 }
               },
               "example": {
-                "name": "Example Company SL",
+                "pnt_erp_id": 50001,
+                "name": "Empresa Ejemplo SL",
                 "vat": "ESA12345678",
                 "is_customer": true,
+                "is_supplier": false,
                 "is_company": true,
                 "type": "contact",
                 "lang": "es_ES",
-                "email": "contact@example.com",
+                "email": "contacto@ejemplo.com",
                 "phone": "+34912345678",
-                "street": "Main Street 123",
-                "code_zip": "28001",
-                "code_ine": "28079",
+                "street": "Calle Principal 123",
+                "city": "Madrid",
+                "zip": "28001",
+                "country_id": 68,
+                "state_id": 300,
                 "comercial": "5",
-                "pnt_erp_id": 50001,
                 "property_payment_term_id": 1,
                 "property_supplier_payment_term_id": 2,
-                "property_inbound_payment_method_line_id": 10,
-                "property_outbound_payment_method_line_id": 11,
                 "property_account_position_id": 5,
-                "property_account_payable_id": 100,
-                "property_account_receivable_id": 101,
-                "comment": "Example notes"
+                "comment": "Notas de ejemplo"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Partner created successfully",
+            "description": "Partner creado correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -419,20 +455,32 @@
                     "odoo_id": 789,
                     "erp_id": 50001,
                     "values": {
-                      "name": "Example Company SL",
+                      "pnt_erp_id": 50001,
+                      "name": "Empresa Ejemplo SL",
                       "vat": "ESA12345678",
                       "is_customer": true,
+                      "is_supplier": false,
                       "is_company": true,
                       "type": "contact",
                       "lang": "es_ES",
-                      "email": "contact@example.com",
+                      "email": "contacto@ejemplo.com",
                       "phone": "+34912345678",
-                      "street": "Main Street 123",
-                      "code_zip": "28001",
-                      "code_ine": "28079",
-                      "comercial": "5",
-                      "pnt_erp_id": 50001,
-                      "property_payment_term_id": 1
+                      "street": "Calle Principal 123",
+                      "city": "Madrid",
+                      "zip": "28001"
+                    },
+                    "metadata": {
+                      "name": "Empresa Ejemplo SL",
+                      "is_customer": true,
+                      "is_supplier": false,
+                      "is_company": true,
+                      "lang": "es_ES",
+                      "type": "contact",
+                      "vat": "ESA12345678",
+                      "street": "Calle Principal 123",
+                      "zip": "28001",
+                      "phone": "+34912345678",
+                      "email": "contacto@ejemplo.com"
                     }
                   }
                 }
@@ -440,20 +488,12 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input parameters or validation errors",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o errores de validación",
             "content": {
               "application/json": {
                 "examples": {
                   "missing_required_field": {
-                    "summary": "Missing required field",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Field required"
-                    }
-                  },
-                  "missing_pnt_erp_id": {
-                    "summary": "Missing pnt_erp_id",
+                    "summary": "Campo obligatorio faltante",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -461,7 +501,7 @@
                     }
                   },
                   "vat_required_for_company": {
-                    "summary": "VAT required when is_company is True",
+                    "summary": "VAT obligatorio cuando is_company es True",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -469,7 +509,7 @@
                     }
                   },
                   "invalid_type_for_company": {
-                    "summary": "Type must be 'contact' for companies",
+                    "summary": "Type debe ser 'contact' para empresas",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -477,15 +517,15 @@
                     }
                   },
                   "parent_id_not_allowed_for_company": {
-                    "summary": "parent_id not allowed for companies",
+                    "summary": "parent_id no permitido para empresas",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Field parent_id must not be set when is_company is True"
                     }
                   },
-                  "comercial_not_allowed_for_individuals": {
-                    "summary": "comercial field not allowed for individuals",
+                  "comercial_not_allowed_for_companies": {
+                    "summary": "Campo comercial no permitido para empresas",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -493,7 +533,7 @@
                     }
                   },
                   "type_invoice_required_for_child": {
-                    "summary": "Type must be 'invoice' when parent_id is provided",
+                    "summary": "Type debe ser 'invoice' cuando se proporciona parent_id",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -501,7 +541,7 @@
                     }
                   },
                   "invalid_lang": {
-                    "summary": "Invalid language code",
+                    "summary": "Código de idioma inválido",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -509,7 +549,7 @@
                     }
                   },
                   "foreign_key_violation": {
-                    "summary": "Foreign key constraint violation",
+                    "summary": "Violación de restricción de clave foránea",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_FOREIGN_KEY",
@@ -521,7 +561,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -533,7 +573,7 @@
             }
           },
           "409": {
-            "description": "Conflict - A partner with this ERP ID or VAT already exists",
+            "description": "Conflicto - Ya existe un partner con este ERP ID o VAT",
             "content": {
               "application/json": {
                 "example": {
@@ -545,7 +585,281 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/partner/{odoo_id}/{erp_id}": {
+      "patch": {
+        "summary": "Actualizar Partner",
+        "description": "Actualiza un partner existente por ID de Odoo e ID de ERP.\n\nEl endpoint valida los datos de entrada y actualiza el registro del partner.\n\n### Reglas de Validación:\n\n- Solo se permite establecer `is_customer` o `is_supplier` a True si actualmente están en False\n- El campo `comercial` solo puede establecerse cuando `is_company` es False\n- No se pueden modificar los campos `vat`, `is_company`, `type` ni `parent_id`\n\nDevuelve 404 si no existe el partner.\n",
+        "operationId": "update_partner",
+        "tags": [
+          "Partners"
+        ],
+        "parameters": [
+          {
+            "name": "odoo_id",
+            "in": "path",
+            "required": true,
+            "description": "ID del partner en Odoo",
+            "schema": {
+              "type": "integer",
+              "example": 789
+            }
+          },
+          {
+            "name": "erp_id",
+            "in": "path",
+            "required": true,
+            "description": "ID del partner en el sistema ERP",
+            "schema": {
+              "type": "integer",
+              "example": 50001
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Nombre del partner."
+                  },
+                  "is_customer": {
+                    "type": "boolean",
+                    "description": "Indica si el partner es un cliente. Solo se puede establecer a True si actualmente es False."
+                  },
+                  "is_supplier": {
+                    "type": "boolean",
+                    "description": "Indica si el partner es un proveedor. Solo se puede establecer a True si actualmente es False."
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en_GB",
+                      "es_ES",
+                      "ca_ES"
+                    ],
+                    "description": "Código de idioma."
+                  },
+                  "street": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Dirección."
+                  },
+                  "street2": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Información adicional de dirección."
+                  },
+                  "country_id": {
+                    "type": "integer",
+                    "description": "ID del país en Odoo."
+                  },
+                  "state_id": {
+                    "type": "integer",
+                    "description": "ID de la provincia/estado en Odoo."
+                  },
+                  "city": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Ciudad."
+                  },
+                  "zip": {
+                    "type": "string",
+                    "maxLength": 24,
+                    "description": "Código postal."
+                  },
+                  "phone": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "description": "Número de teléfono."
+                  },
+                  "mobile": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "description": "Número de móvil."
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Dirección de correo electrónico."
+                  },
+                  "comercial": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "description": "Identificador del agente comercial. Solo válido cuando is_company es False."
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "Notas internas."
+                  },
+                  "property_payment_term_id": {
+                    "type": "integer",
+                    "description": "ID del plazo de pago de cliente."
+                  },
+                  "property_supplier_payment_term_id": {
+                    "type": "integer",
+                    "description": "ID del plazo de pago de proveedor."
+                  },
+                  "property_inbound_payment_method_line_id": {
+                    "type": "integer",
+                    "description": "ID de la línea del método de pago entrante."
+                  },
+                  "property_outbound_payment_method_line_id": {
+                    "type": "integer",
+                    "description": "ID de la línea del método de pago saliente."
+                  },
+                  "property_account_position_id": {
+                    "type": "integer",
+                    "description": "ID de la posición fiscal."
+                  },
+                  "property_account_payable_id": {
+                    "type": "integer",
+                    "description": "ID de la cuenta a pagar."
+                  },
+                  "property_account_receivable_id": {
+                    "type": "integer",
+                    "description": "ID de la cuenta a cobrar."
+                  }
+                }
+              },
+              "example": {
+                "name": "Empresa Ejemplo Actualizada SL",
+                "email": "nuevo_contacto@ejemplo.com",
+                "phone": "+34912345999",
+                "street": "Calle Nueva 456",
+                "city": "Barcelona",
+                "zip": "08001"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partner actualizado correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record updated successfully",
+                  "data": {
+                    "odoo_id": 789,
+                    "erp_id": 50001,
+                    "values": {
+                      "name": "Empresa Ejemplo Actualizada SL",
+                      "email": "nuevo_contacto@ejemplo.com",
+                      "phone": "+34912345999",
+                      "street": "Calle Nueva 456",
+                      "city": "Barcelona",
+                      "zip": "08001"
+                    },
+                    "metadata": {
+                      "name": "Empresa Ejemplo Actualizada SL",
+                      "is_customer": true,
+                      "is_supplier": false,
+                      "is_company": true,
+                      "lang": "es_ES",
+                      "type": "contact",
+                      "vat": "ESA12345678",
+                      "street": "Calle Nueva 456",
+                      "zip": "08001",
+                      "phone": "+34912345999",
+                      "email": "nuevo_contacto@ejemplo.com"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "cannot_disable_customer": {
+                    "summary": "No se puede deshabilitar cliente/proveedor",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Only is allowed to set is_customer or is_supplier to True if they are set to False"
+                    }
+                  },
+                  "comercial_not_allowed": {
+                    "summary": "Campo comercial no permitido para empresas",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Field comercial can only be set when is_company is False"
+                    }
+                  },
+                  "foreign_key_violation": {
+                    "summary": "Violación de restricción de clave foránea",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_FOREIGN_KEY",
+                      "message": "Invalid foreign key: insert or update on table \"res_partner\" violates foreign key constraint"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key inválida, ausente o expirada",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado - El partner con este ID de Odoo y ERP no existe",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "RECORD_NOT_FOUND",
+                  "message": "Record not found: 789"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - Ya existe un partner con este valor único",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_KEY_VALUE",
+                  "message": "Duplicate key value: duplicate key value violates unique constraint"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
