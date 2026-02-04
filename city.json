@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "City Management API",
-    "description": "API for retrieving city information by INE code in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "API de Gestión de Ciudades",
+    "description": "API para obtener información de ciudades por código INE en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -11,7 +11,7 @@
   "servers": [
     {
       "url": "{protocol}://{host}:{port}{basePath}",
-      "description": "Personalized Server Configuration",
+      "description": "Configuración Personalizada del Servidor",
       "variables": {
         "protocol": {
           "enum": [
@@ -19,19 +19,19 @@
             "https"
           ],
           "default": "http",
-          "description": "Protocol (http or https)"
+          "description": "Protocolo (http o https)"
         },
         "host": {
           "default": "localhost",
-          "description": "Server hostname or IP address"
+          "description": "Nombre de host o dirección IP del servidor"
         },
         "port": {
           "default": "8069",
-          "description": "Server port number"
+          "description": "Número de puerto del servidor"
         },
         "basePath": {
           "default": "/api/v1",
-          "description": "API base path"
+          "description": "Ruta base de la API"
         }
       }
     }
@@ -47,25 +47,44 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "API key for authentication"
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "City": {
+        "type": "object",
+        "properties": {
+          "odoo_id": {
+            "type": "integer"
+          },
+          "erp_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code_ine": {
+            "type": "string"
+          }
+        }
       }
     }
   },
   "paths": {
     "/city/{code_ine}": {
       "get": {
-        "summary": "Get City",
-        "description": "Retrieve a specific city by its INE code.\n\nThe endpoint searches for a case-insensitive match of the sanitized INE code.\nReturns 404 if no matching record exists.\n",
+        "summary": "Obtener Ciudad",
+        "description": "Recupera una ciudad específica por su código INE.\n\nEl endpoint busca una coincidencia (insensible a mayúsculas/minúsculas) del código INE saneado. Devuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_city",
         "tags": [
-          "Cities"
+          "Ciudades"
         ],
         "parameters": [
           {
             "name": "code_ine",
             "in": "path",
             "required": true,
-            "description": "The INE code of the city to search for (will be sanitized)",
+            "description": "El código INE de la ciudad a buscar (será saneado)",
             "schema": {
               "type": "string",
               "example": "28001"
@@ -74,7 +93,7 @@
         ],
         "responses": {
           "200": {
-            "description": "City found successfully",
+            "description": "Ciudad encontrada correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -83,14 +102,20 @@
                   "data": {
                     "odoo_id": 1,
                     "erp_id": 10001,
-                    "name": "Madrid"
+                    "name": "Madrid",
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -102,7 +127,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The city with this INE code does not exist",
+            "description": "No encontrado - La ciudad con este código INE no existe",
             "content": {
               "application/json": {
                 "example": {
@@ -114,7 +139,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {

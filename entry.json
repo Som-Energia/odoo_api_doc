@@ -1,0 +1,275 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Gestión de Asientos Contables",
+    "description": "API para crear asientos contables en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Validaciones destacadas\n- La precisión de los importes de `debit` y `credit` se valida según los decimales permitidos por la moneda de la compañía.\n- El balance de las líneas (debe/haber) lo valida Odoo al crear el asiento.\n- El diario debe ser de tipo general (`type = general`).\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Referencia inexistente (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuración Personalizada del Servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o dirección IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Número de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticación"
+      }
+    }
+  },
+  "paths": {
+    "/entries": {
+      "post": {
+        "summary": "Crear Asiento",
+        "description": "Crea un asiento contable (`account.move`).\n\nValidaciones:\n- `debit` y `credit` deben respetar el número de decimales permitidos por la moneda de la compañía.\n- El balance (debe = haber) se valida por Odoo durante la creación.\n",
+        "operationId": "create_entry",
+        "tags": [
+          "Asientos"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryCreateRequest"
+              },
+              "example": {
+                "pnt_erp_id": 1368,
+                "ref": "123",
+                "date": "2026-02-02",
+                "journal_id": 10,
+                "lines": [
+                  {
+                    "account_id": 1227,
+                    "partner_id": 1669,
+                    "name": "aass",
+                    "debit": 123
+                  },
+                  {
+                    "account_id": 1227,
+                    "partner_id": 1669,
+                    "name": "aass",
+                    "credit": 123
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asiento creado correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 2001,
+                    "erp_id": 1368,
+                    "values": {
+                      "pnt_erp_id": 1368,
+                      "ref": "123",
+                      "date": "2026-02-02",
+                      "journal_id": 10,
+                      "lines": [
+                        {
+                          "account_id": 1227,
+                          "partner_id": 1669,
+                          "name": "aass",
+                          "debit": 123
+                        },
+                        {
+                          "account_id": 1227,
+                          "partner_id": 1669,
+                          "name": "aass",
+                          "credit": 123
+                        }
+                      ]
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "ref": "123",
+                        "date": "2026-02-02",
+                        "journal_id": 10,
+                        "lines": [
+                          {
+                            "id": 3001,
+                            "account_id": 1227,
+                            "partner_id": 1669,
+                            "debit": 123,
+                            "credit": 0,
+                            "name": "aass"
+                          },
+                          {
+                            "id": 3002,
+                            "account_id": 1227,
+                            "partner_id": 1669,
+                            "debit": 0,
+                            "credit": 123,
+                            "name": "aass"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Parámetros inválidos o errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "missing_field": {
+                    "summary": "Campo obligatorio faltante",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "pnt_erp_id"
+                          ],
+                          "msg": "Field required",
+                          "type": "missing"
+                        }
+                      ]
+                    }
+                  },
+                  "decimals_not_allowed": {
+                    "summary": "Demasiados decimales en debit/credit",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "lines",
+                            0,
+                            "debit"
+                          ],
+                          "msg": "Amount has 4 decimals; allowed (2)",
+                          "type": "value_error"
+                        }
+                      ]
+                    }
+                  },
+                  "invalid_foreign_key": {
+                    "summary": "Diario inexistente",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_FOREIGN_KEY",
+                      "message": "Invalid foreign key reference: account.journal(9999)",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "journal_id"
+                          ],
+                          "msg": "Invalid journal_id",
+                          "type": "value_error"
+                        }
+                      ]
+                    }
+                  },
+                  "invalid_journal_type": {
+                    "summary": "Diario no general",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "journal_id"
+                          ],
+                          "msg": "Journal type must be 'general', but it is 'sale'",
+                          "type": "value_error"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key inválida, ausente o expirada",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - ERP ID duplicado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_KEY_VALUE",
+                  "message": "Record with provided key already exists: duplicate key value violates unique constraint \"account_move_pnt_erp_id_uniq\""
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

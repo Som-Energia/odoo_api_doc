@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Account Management API",
-    "description": "API for retrieving and creating accounting accounts in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Multi-Company Behavior\nWhen creating an account, the API automatically creates the same account (without ERP ID) in all other companies where it doesn't exist.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "API de Gestión de Cuentas Contables",
+    "description": "API para obtener y crear cuentas contables en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento Multi-Compañía\nAl crear una cuenta, la API crea automáticamente la misma cuenta (sin ERP ID) en todas las demás compañías donde aún no exista. Las cuentas replicadas se devuelven dentro de `metadata[0].new_accounts_by_company`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -11,7 +11,7 @@
   "servers": [
     {
       "url": "{protocol}://{host}:{port}{basePath}",
-      "description": "Personalized Server Configuration",
+      "description": "Configuración Personalizada del Servidor",
       "variables": {
         "protocol": {
           "enum": [
@@ -19,19 +19,19 @@
             "https"
           ],
           "default": "http",
-          "description": "Protocol (http or https)"
+          "description": "Protocolo (http o https)"
         },
         "host": {
           "default": "localhost",
-          "description": "Server hostname or IP address"
+          "description": "Nombre de host o dirección IP del servidor"
         },
         "port": {
           "default": "8069",
-          "description": "Server port number"
+          "description": "Número de puerto del servidor"
         },
         "basePath": {
           "default": "/api/v1",
-          "description": "API base path"
+          "description": "Ruta base de la API"
         }
       }
     }
@@ -47,25 +47,54 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "API key for authentication"
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "AccountCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "name",
+          "code"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "description": "Identificador único del sistema ERP. Debe ser mayor que 0.",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Nombre de la cuenta contable.",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "code": {
+            "type": "string",
+            "description": "Código de la cuenta contable.",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
       }
     }
   },
   "paths": {
     "/account/{code}": {
       "get": {
-        "summary": "Get Account",
-        "description": "Retrieve a specific account by its code.\n\nThe endpoint searches for an exact match of the sanitized account code.\nWhitespace is trimmed from the code before searching.\nReturns 404 if no matching record exists.\n",
+        "summary": "Obtener Cuenta",
+        "description": "Obtiene una cuenta específica por su código.\n\nEl endpoint busca una coincidencia exacta del código de cuenta saneado.\nLos espacios en blanco se recortan del código antes de buscar.\nDevuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_account",
         "tags": [
-          "Accounts"
+          "Cuentas"
         ],
         "parameters": [
           {
             "name": "code",
             "in": "path",
             "required": true,
-            "description": "The account code to search for (whitespace will be trimmed)",
+            "description": "El código de cuenta a buscar (se recortarán los espacios en blanco)",
             "schema": {
               "type": "string",
               "example": "700000"
@@ -74,7 +103,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Account found successfully",
+            "description": "Cuenta encontrada correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -83,19 +112,20 @@
                   "data": {
                     "odoo_id": 123,
                     "erp_id": 50001,
-                    "name": "700000",
-                    "company": "My Company",
-                    "metadata": {
-                      "code": "700000",
-                      "account_name": "Sales Revenue"
-                    }
+                    "name": "700000 - Ingresos por ventas",
+                    "metadata": [
+                      {
+                        "code": "700000",
+                        "name": "Ingresos por ventas"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -107,7 +137,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The account with this code does not exist",
+            "description": "No encontrado - La cuenta con este código no existe",
             "content": {
               "application/json": {
                 "example": {
@@ -119,7 +149,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -135,11 +165,11 @@
     },
     "/accounts": {
       "post": {
-        "summary": "Create Account",
-        "description": "Create a new accounting account.\n\nThe endpoint validates the input data and creates a new account record.\nAdditionally, it automatically creates the same account (without ERP ID)\nin all other companies where it doesn't exist.\n\nReturns 409 if a duplicate account already exists.\n",
+        "summary": "Crear Cuenta",
+        "description": "Crea una nueva cuenta contable.\n\nEl endpoint valida los datos de entrada y crea un nuevo registro de cuenta.\nAdemás, crea automáticamente la misma cuenta (sin ERP ID) en todas las demás compañías donde no exista.\nLas cuentas replicadas se devuelven dentro de `metadata[0].new_accounts_by_company`.\n\nDevuelve 409 si ya existe una cuenta duplicada.\n",
         "operationId": "create_account",
         "tags": [
-          "Accounts"
+          "Cuentas"
         ],
         "requestBody": {
           "required": true,
@@ -149,7 +179,7 @@
                 "$ref": "#/components/schemas/AccountCreateRequest"
               },
               "example": {
-                "name": "Sales Revenue",
+                "name": "Ingresos por ventas",
                 "code": "700000",
                 "pnt_erp_id": 50001
               }
@@ -158,7 +188,7 @@
         },
         "responses": {
           "201": {
-            "description": "Account created successfully",
+            "description": "Cuenta creada correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -168,14 +198,30 @@
                     "odoo_id": 124,
                     "erp_id": 50001,
                     "values": {
-                      "name": "Sales Revenue",
+                      "name": "Ingresos por ventas",
                       "code": "700000"
                     },
-                    "new_accounts_by_company": [
+                    "metadata": [
                       {
-                        "id": 125,
-                        "company": "Secondary Company",
-                        "pnt_erp_id": false
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "code": "700000",
+                        "name": "Ingresos por ventas",
+                        "new_accounts_by_company": [
+                          {
+                            "odoo_id": 125,
+                            "erp_id": false,
+                            "company": "Compañía Secundaria",
+                            "metadata": [
+                              {
+                                "company_id": 2,
+                                "company_name": "Compañía Secundaria",
+                                "code": "700000",
+                                "name": "Ingresos por ventas"
+                              }
+                            ]
+                          }
+                        ]
                       }
                     ]
                   }
@@ -184,12 +230,12 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input parameters or validation errors",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o errores de validación",
             "content": {
               "application/json": {
                 "examples": {
                   "missing_field": {
-                    "summary": "Missing required field",
+                    "summary": "Campo obligatorio faltante",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -206,7 +252,7 @@
                     }
                   },
                   "invalid_value": {
-                    "summary": "Invalid field value",
+                    "summary": "Valor de campo inválido",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -228,7 +274,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -240,7 +286,7 @@
             }
           },
           "409": {
-            "description": "Conflict - An account with this ERP ID already exists",
+            "description": "Conflicto - Ya existe una cuenta con este ERP ID o código",
             "content": {
               "application/json": {
                 "example": {
@@ -252,7 +298,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {

@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Bank Account Management API",
-    "description": "API for retrieving and creating bank accounts associated with suppliers in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error, including invalid checksum digits (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "API de Gestión de Cuentas Bancarias",
+    "description": "API para obtener y crear cuentas bancarias asociadas a proveedores en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación, incluyendo dígitos de control inválidos (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -11,7 +11,7 @@
   "servers": [
     {
       "url": "{protocol}://{host}:{port}{basePath}",
-      "description": "Personalized Server Configuration",
+      "description": "Configuración Personalizada del Servidor",
       "variables": {
         "protocol": {
           "enum": [
@@ -19,19 +19,19 @@
             "https"
           ],
           "default": "http",
-          "description": "Protocol (http or https)"
+          "description": "Protocolo (http o https)"
         },
         "host": {
           "default": "localhost",
-          "description": "Server hostname or IP address"
+          "description": "Nombre de host o dirección IP del servidor"
         },
         "port": {
           "default": "8069",
-          "description": "Server port number"
+          "description": "Número de puerto del servidor"
         },
         "basePath": {
           "default": "/api/v1",
-          "description": "API base path"
+          "description": "Ruta base de la API"
         }
       }
     }
@@ -47,25 +47,70 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "API key for authentication"
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "BankAccount": {
+        "type": "object",
+        "properties": {
+          "odoo_id": {
+            "type": "integer"
+          },
+          "erp_id": {
+            "type": "integer"
+          },
+          "acc_number": {
+            "type": "string"
+          },
+          "partner_id": {
+            "type": "integer"
+          }
+        }
+      },
+      "BankCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "acc_number",
+          "partner_id"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador ERP (>0)."
+          },
+          "acc_number": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Número de cuenta bancaria (IBAN)."
+          },
+          "partner_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del partner en Odoo (>0)."
+          }
+        }
       }
     }
   },
   "paths": {
     "/bank/{partner_id}": {
       "get": {
-        "summary": "Get Bank Account",
-        "description": "Retrieve a specific bank account for a given partner by account number.\n\nThe endpoint searches for an exact match of the sanitized account number\nassociated with the specified partner. Returns 404 if no matching record exists.\n",
+        "summary": "Obtener Cuenta Bancaria",
+        "description": "Recupera una cuenta bancaria específica para un partner dado por número de cuenta.\n\nEl endpoint busca una coincidencia exacta del número de cuenta saneado asociado al partner especificado. Devuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_bank_number",
         "tags": [
-          "Bank Accounts"
+          "Cuentas Bancarias"
         ],
         "parameters": [
           {
             "name": "partner_id",
             "in": "path",
             "required": true,
-            "description": "The Odoo database ID of the partner",
+            "description": "El ID de la base de datos de Odoo del partner",
             "schema": {
               "type": "integer",
               "example": 45
@@ -75,7 +120,7 @@
             "name": "acc_number",
             "in": "query",
             "required": true,
-            "description": "The bank account number to search for (will be sanitized)",
+            "description": "El número de cuenta bancaria a buscar (será saneado)",
             "schema": {
               "type": "string",
               "example": "ES9121000418450200051332"
@@ -84,7 +129,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Bank account found successfully",
+            "description": "Cuenta bancaria encontrada correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -93,14 +138,20 @@
                   "data": {
                     "odoo_id": 123,
                     "erp_id": 70001,
-                    "name": "ES9121000418450200051332"
+                    "name": "ES9121000418450200051332",
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -112,7 +163,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The bank account does not exist for this partner",
+            "description": "No encontrado - La cuenta bancaria no existe para este partner",
             "content": {
               "application/json": {
                 "example": {
@@ -124,7 +175,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -140,16 +191,19 @@
     },
     "/banks": {
       "post": {
-        "summary": "Create Bank Account",
-        "description": "Create a new bank account for a supplier.\n\nThe endpoint automatically identifies and assigns the bank from the account number\nif possible. Returns 409 if a duplicate account already exists.\n",
+        "summary": "Crear Cuenta Bancaria",
+        "description": "Crea una nueva cuenta bancaria para un proveedor.\n\nEl endpoint identifica y asigna automáticamente el banco a partir del número de cuenta si es posible. Devuelve 409 si ya existe una cuenta duplicada.\n",
         "operationId": "create_bank_number",
         "tags": [
-          "Bank Accounts"
+          "Cuentas Bancarias"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankCreateRequest"
+              },
               "example": {
                 "acc_number": "ES7620770024003102575766",
                 "partner_id": 45,
@@ -160,7 +214,7 @@
         },
         "responses": {
           "201": {
-            "description": "Bank account created successfully",
+            "description": "Cuenta bancaria creada correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -173,19 +227,26 @@
                       "acc_number": "ES7620770024003102575766",
                       "partner_id": 45,
                       "pnt_erp_id": 70003
-                    }
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "acc_number": "ES7620770024003102575766"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input parameters, validation errors, or invalid checksum digits.\nThis error occurs when:\n- Required fields are missing or empty\n- Field values don't meet validation rules\n- The bank account number has invalid checksum digits (IBAN validation failed)\n",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos, errores de validación o dígitos de control inválidos.\nEste error ocurre cuando:\n- Faltan campos obligatorios o están vacíos\n- Los valores de los campos no cumplen con las reglas de validación\n- El número de cuenta bancaria tiene dígitos de control inválidos (falló la validación IBAN)\n",
             "content": {
               "application/json": {
                 "examples": {
                   "validation_error": {
-                    "summary": "Validation error for empty field",
+                    "summary": "Error de validación por campo vacío",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -203,11 +264,20 @@
                     }
                   },
                   "invalid_checksum": {
-                    "summary": "Invalid checksum digits in bank account number",
+                    "summary": "Dígitos de control inválidos en el número de cuenta bancaria",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
-                      "message": "Invalid checksum digits"
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "acc_number"
+                          ],
+                          "msg": "Invalid checksum digits",
+                          "type": "value_error"
+                        }
+                      ]
                     }
                   }
                 }
@@ -215,7 +285,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -227,7 +297,7 @@
             }
           },
           "409": {
-            "description": "Conflict - A bank account with this number already exists for this partner",
+            "description": "Conflicto - Ya existe una cuenta bancaria con este número para este partner",
             "content": {
               "application/json": {
                 "example": {
@@ -239,7 +309,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {

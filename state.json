@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "State Management API",
-    "description": "API for retrieving and creating state/province information in Odoo.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `INVALID_PARAMETERS`: Validation error (400 status)\n- `INVALID_FOREIGN_KEY`: Foreign key violation (400 status)\n- `DUPLICATE_KEY_VALUE`: Duplicate resource (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "API de Gestión de Estados/Provincias",
+    "description": "API para obtener y crear información de estados/provincias en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -11,7 +11,7 @@
   "servers": [
     {
       "url": "{protocol}://{host}:{port}{basePath}",
-      "description": "Personalized Server Configuration",
+      "description": "Configuración Personalizada del Servidor",
       "variables": {
         "protocol": {
           "enum": [
@@ -19,19 +19,19 @@
             "https"
           ],
           "default": "http",
-          "description": "Protocol (http or https)"
+          "description": "Protocolo (http o https)"
         },
         "host": {
           "default": "localhost",
-          "description": "Server hostname or IP address"
+          "description": "Nombre de host o dirección IP del servidor"
         },
         "port": {
           "default": "8069",
-          "description": "Server port number"
+          "description": "Número de puerto del servidor"
         },
         "basePath": {
           "default": "/api/v1",
-          "description": "API base path"
+          "description": "Ruta base de la API"
         }
       }
     }
@@ -47,25 +47,76 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "API key for authentication"
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "State": {
+        "type": "object",
+        "properties": {
+          "odoo_id": {
+            "type": "integer"
+          },
+          "erp_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "code_country": {
+            "type": "string"
+          }
+        }
+      },
+      "StateCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "name",
+          "code",
+          "country_id"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "country_id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
       }
     }
   },
   "paths": {
     "/state/{code_country}/{code}": {
       "get": {
-        "summary": "Get State",
-        "description": "Retrieve a specific state/province by country code and state code.\n\nThe endpoint searches for a case-insensitive match of the sanitized state code\nwithin the specified country. Returns 404 if no matching record exists.\n",
+        "summary": "Obtener Estado/Provincia",
+        "description": "Recupera un estado/provincia específico por código de país y código de estado.\n\nEl endpoint busca una coincidencia (insensible a mayúsculas/minúsculas) del código de estado saneado dentro del país especificado. Devuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_state",
         "tags": [
-          "States"
+          "Estados"
         ],
         "parameters": [
           {
             "name": "code_country",
             "in": "path",
             "required": true,
-            "description": "The country code (e.g., 'ES', 'FR')",
+            "description": "El código del país (ej. 'ES', 'FR')",
             "schema": {
               "type": "string",
               "example": "ES"
@@ -75,7 +126,7 @@
             "name": "code",
             "in": "path",
             "required": true,
-            "description": "The state/province code to search for",
+            "description": "El código del estado/provincia a buscar",
             "schema": {
               "type": "string",
               "example": "V"
@@ -84,7 +135,7 @@
         ],
         "responses": {
           "200": {
-            "description": "State found successfully",
+            "description": "Estado/provincia encontrado correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -93,14 +144,20 @@
                   "data": {
                     "odoo_id": 1,
                     "erp_id": 10001,
-                    "name": "Valencia"
+                    "name": "Valencia",
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -112,7 +169,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The state with this code does not exist",
+            "description": "No encontrado - El estado con este código no existe",
             "content": {
               "application/json": {
                 "example": {
@@ -124,7 +181,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -140,16 +197,19 @@
     },
     "/states": {
       "post": {
-        "summary": "Create State",
-        "description": "Create a new state/province record.\n\nThe endpoint validates the input data and creates a new state record.\nReturns 409 if a duplicate state already exists.\n",
+        "summary": "Crear Estado/Provincia",
+        "description": "Crea un nuevo registro de estado/provincia.\n\nEl endpoint valida los datos de entrada y crea un nuevo registro de estado. Devuelve 409 si ya existe un estado duplicado.\n",
         "operationId": "create_state",
         "tags": [
-          "States"
+          "Estados"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StateCreateRequest"
+              },
               "example": {
                 "name": "Valencia",
                 "code": "V",
@@ -161,7 +221,7 @@
         },
         "responses": {
           "201": {
-            "description": "State created successfully",
+            "description": "Estado/provincia creado correctamente",
             "content": {
               "application/json": {
                 "example": {
@@ -175,19 +235,25 @@
                       "code": "V",
                       "country_id": 68,
                       "pnt_erp_id": 10001
-                    }
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input parameters or foreign key violation.\nThis error occurs when:\n- Required fields are missing or empty\n- Field values don't meet validation rules\n- The country_id does not exist\n",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o violación de clave foránea.\nEste error ocurre cuando:\n- Faltan campos obligatorios o están vacíos\n- Los valores de los campos no cumplen con las reglas de validación\n- El country_id no existe\n",
             "content": {
               "application/json": {
                 "examples": {
                   "validation_error": {
-                    "summary": "Validation error for empty field",
+                    "summary": "Error de validación por campo vacío",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -205,11 +271,11 @@
                     }
                   },
                   "foreign_key_error": {
-                    "summary": "Invalid country reference",
+                    "summary": "Referencia de país inválida",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_FOREIGN_KEY",
-                      "message": "Invalid foreign key reference"
+                      "message": "Invalid foreign key reference: insert or update on table \"res_country_state\" violates foreign key constraint"
                     }
                   }
                 }
@@ -217,7 +283,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -229,7 +295,7 @@
             }
           },
           "409": {
-            "description": "Conflict - A state with this code already exists for this country",
+            "description": "Conflicto - Ya existe un estado con este código para este país",
             "content": {
               "application/json": {
                 "example": {
@@ -241,7 +307,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {

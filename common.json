@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Common Entity Management API",
-    "description": "API for retrieving Odoo records by ERP ID across multiple entity types\nand updating ERP IDs for existing records.\n\n## Authentication\nAll endpoints require API key authentication via the `X-API-Key` header.\n\n## Response Format\nAll responses follow a standard format with `success`, `message`, and optionally `data` or `error_code` fields.\n\n## Allowed Entities\n- `account`: account.account\n- `bank`: res.partner.bank\n- `city`: res.city\n- `country`: res.country\n- `partner`: res.partner\n- `state`: res.country.state\n\n## Error Codes\n- `INVALID_API_KEY`: Authentication failed\n- `INVALID_ENTITY`: Invalid entity type (400 status)\n- `RECORD_NOT_FOUND`: Resource not found (404 status)\n- `DUPLICATE_ERP_ID`: ERP ID already exists (409 status)\n- `INTERNAL_SERVER_ERROR`: Unexpected error (500 status)\n",
+    "title": "API de Gestión de Entidades Comunes",
+    "description": "API para recuperar registros de Odoo por ERP ID en múltiples tipos de entidades\ny actualizar los ERP IDs para registros existentes.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Entidades Permitidas\n- `account`: account.account (Cuentas contables)\n- `bank`: res.partner.bank (Bancos)\n- `city`: res.city (Ciudades)\n- `country`: res.country (Países)\n- `entry`: account.move (Asientos contables)\n- `partner`: res.partner (Partners)\n- `state`: res.country.state (Provincias/Estados)\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_ENTITY`: Tipo de entidad inválido (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `DUPLICATE_ERP_ID`: El ERP ID ya existe (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -11,7 +11,7 @@
   "servers": [
     {
       "url": "{protocol}://{host}:{port}{basePath}",
-      "description": "Personalized Server Configuration",
+      "description": "Configuración Personalizada del Servidor",
       "variables": {
         "protocol": {
           "enum": [
@@ -19,19 +19,19 @@
             "https"
           ],
           "default": "http",
-          "description": "Protocol (http or https)"
+          "description": "Protocolo (http o https)"
         },
         "host": {
           "default": "localhost",
-          "description": "Server hostname or IP address"
+          "description": "Nombre de host o dirección IP del servidor"
         },
         "port": {
           "default": "8069",
-          "description": "Server port number"
+          "description": "Número de puerto del servidor"
         },
         "basePath": {
           "default": "/api/v1",
-          "description": "API base path"
+          "description": "Ruta base de la API"
         }
       }
     }
@@ -47,24 +47,77 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "API key for authentication"
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "EntitiesMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "EntityRecord": {
+        "type": "object",
+        "properties": {
+          "odoo_id": {
+            "type": "integer"
+          },
+          "erp_id": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      },
+      "EntitiesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntitiesMap"
+          }
+        }
+      },
+      "EntityRecordResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntityRecord"
+          }
+        }
       }
     }
   },
   "paths": {
     "/entities": {
       "get": {
-        "summary": "Get Entity List",
-        "description": "Retrieve the list of allowed entity types and their corresponding Odoo models.\n",
+        "summary": "Obtener Lista de Entidades",
+        "description": "Recupera la lista de tipos de entidades permitidos y sus correspondientes modelos de Odoo.\n",
         "operationId": "get_list_models",
         "tags": [
-          "Entities"
+          "Entidades"
         ],
         "responses": {
           "200": {
-            "description": "Entity list retrieved successfully",
+            "description": "Lista de entidades recuperada correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntitiesResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Entities retrieved successfully",
@@ -73,6 +126,7 @@
                     "bank": "res.partner.bank",
                     "city": "res.city",
                     "country": "res.country",
+                    "entry": "account.move",
                     "partner": "res.partner",
                     "state": "res.country.state"
                   }
@@ -81,7 +135,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -93,7 +147,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -109,18 +163,18 @@
     },
     "/entity/{entity}/{erp_id}": {
       "get": {
-        "summary": "Get Record by ERP ID",
-        "description": "Retrieve the Odoo ID for a given entity type and ERP ID.\n\nReturns 404 if no matching record exists.\n",
+        "summary": "Obtener Registro por ERP ID",
+        "description": "Recupera el ID de Odoo para un tipo de entidad y ERP ID dados.\n\nDevuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_record_info",
         "tags": [
-          "Entities"
+          "Entidades"
         ],
         "parameters": [
           {
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "The entity type (account, bank, city, country, partner, or state)",
+            "description": "El tipo de entidad (account, bank, city, country, partner o state)",
             "schema": {
               "type": "string",
               "enum": [
@@ -128,6 +182,7 @@
                 "bank",
                 "city",
                 "country",
+                "entry",
                 "partner",
                 "state"
               ],
@@ -138,7 +193,7 @@
             "name": "erp_id",
             "in": "path",
             "required": true,
-            "description": "The ERP ID to search for",
+            "description": "El ERP ID a buscar",
             "schema": {
               "type": "integer",
               "example": 10001
@@ -147,9 +202,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Record found successfully",
+            "description": "Registro encontrado correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRecordResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record found successfully",
@@ -163,19 +221,19 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid entity type",
+            "description": "Solicitud incorrecta - Tipo de entidad inválido",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
                   "error_code": "INVALID_ENTITY",
-                  "message": "Invalid entity type: invalid_entity"
+                  "message": "Invalid entity: invalid_entity"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -187,7 +245,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The record with this ERP ID does not exist",
+            "description": "No encontrado - El registro con este ERP ID no existe",
             "content": {
               "application/json": {
                 "example": {
@@ -199,7 +257,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
@@ -215,18 +273,18 @@
     },
     "/entity/{entity}/{odoo_id}/{erp_id}": {
       "patch": {
-        "summary": "Set ERP ID",
-        "description": "Set the ERP ID for a given Odoo record.\n\nReturns 409 if the ERP ID already exists for another record.\n",
+        "summary": "Establecer ERP ID",
+        "description": "Establece el ERP ID para un registro de Odoo dado.\n\nDevuelve 409 si el ERP ID ya existe para otro registro.\n",
         "operationId": "set_erp_id",
         "tags": [
-          "Entities"
+          "Entidades"
         ],
         "parameters": [
           {
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "The entity type (account, bank, city, country, partner, or state)",
+            "description": "El tipo de entidad (account, bank, city, country, partner o state)",
             "schema": {
               "type": "string",
               "enum": [
@@ -234,6 +292,7 @@
                 "bank",
                 "city",
                 "country",
+                "entry",
                 "partner",
                 "state"
               ],
@@ -244,7 +303,7 @@
             "name": "odoo_id",
             "in": "path",
             "required": true,
-            "description": "The Odoo ID of the record to update",
+            "description": "El ID de Odoo del registro a actualizar",
             "schema": {
               "type": "integer",
               "example": 68
@@ -254,7 +313,7 @@
             "name": "erp_id",
             "in": "path",
             "required": true,
-            "description": "The ERP ID to set",
+            "description": "El ERP ID a establecer",
             "schema": {
               "type": "integer",
               "example": 10001
@@ -263,9 +322,12 @@
         ],
         "responses": {
           "200": {
-            "description": "ERP ID updated successfully",
+            "description": "ERP ID actualizado correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRecordResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "ERP ID updated successfully",
@@ -279,19 +341,19 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid entity type",
+            "description": "Solicitud incorrecta - Tipo de entidad inválido",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
                   "error_code": "INVALID_ENTITY",
-                  "message": "Invalid entity type: invalid_entity"
+                  "message": "Invalid entity: invalid_entity"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid, missing, or expired API key",
+            "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
                 "example": {
@@ -303,7 +365,7 @@
             }
           },
           "404": {
-            "description": "Not Found - The record with this Odoo ID does not exist",
+            "description": "No encontrado - El registro con este ID de Odoo no existe",
             "content": {
               "application/json": {
                 "example": {
@@ -315,7 +377,7 @@
             }
           },
           "409": {
-            "description": "Conflict - The ERP ID already exists for another record",
+            "description": "Conflicto - El ERP ID ya existe para otro registro",
             "content": {
               "application/json": {
                 "example": {
@@ -327,7 +389,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - Unexpected error occurred",
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
             "content": {
               "application/json": {
                 "example": {
