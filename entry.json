@@ -49,13 +49,91 @@
         "name": "X-API-Key",
         "description": "API key para autenticación"
       }
+    },
+    "schemas": {
+      "EntryLineSchema": {
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la cuenta contable (>0)."
+          },
+          "partner_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del partner (>0)."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Etiqueta/Descripción de la línea."
+          },
+          "debit": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Importe en el debe (>=0)."
+          },
+          "credit": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Importe en el haber (>=0)."
+          }
+        }
+      },
+      "EntryCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "number",
+          "date",
+          "journal_id"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP (>0)."
+          },
+          "number": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Número del asiento."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha del asiento (YYYY-MM-DD)."
+          },
+          "journal_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del diario contable (>0)."
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Referencia del asiento."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EntryLineSchema"
+            },
+            "description": "Líneas del asiento."
+          }
+        }
+      }
     }
   },
   "paths": {
     "/entries": {
       "post": {
         "summary": "Crear Asiento",
-        "description": "Crea un asiento contable (`account.move`).\n\nValidaciones:\n- `debit` y `credit` deben respetar el número de decimales permitidos por la moneda de la compañía.\n- El balance (debe = haber) se valida por Odoo durante la creación.\n",
+        "description": "Crea un asiento contable (`account.move`).\n\nValidaciones:\n- `debit` y `credit` deben respetar el número de decimales permitidos por la moneda de la compañía.\n- El balance (debe = haber) se valida por Odoo durante la creación.\n- El diario debe ser de tipo `general`.\n- El diario debe tener habilitada la sincronización ERP (`pnt_synchronization_erp`).\n",
         "operationId": "create_entry",
         "tags": [
           "Asientos"
@@ -69,9 +147,10 @@
               },
               "example": {
                 "pnt_erp_id": 1368,
-                "ref": "123",
+                "number": "ASIENTO/2026/001",
                 "date": "2026-02-02",
                 "journal_id": 10,
+                "ref": "123",
                 "lines": [
                   {
                     "account_id": 1227,
@@ -103,9 +182,10 @@
                     "erp_id": 1368,
                     "values": {
                       "pnt_erp_id": 1368,
-                      "ref": "123",
+                      "number": "ASIENTO/2026/001",
                       "date": "2026-02-02",
                       "journal_id": 10,
+                      "ref": "123",
                       "lines": [
                         {
                           "account_id": 1227,
@@ -125,6 +205,7 @@
                       {
                         "company_id": 1,
                         "company_name": "Compañía Principal",
+                        "number": "ASIENTO/2026/001",
                         "ref": "123",
                         "date": "2026-02-02",
                         "journal_id": 10,
