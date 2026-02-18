@@ -1,0 +1,332 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Gestión de Remesas de Pagos/Cobros",
+    "description": "API para crear remesas (account.batch.payment) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Remesa\n- `inbound`: Remesa de cobros (Domiciliación bancaria)\n- `outbound`: Remesa de pagos (Transferencia de crédito)\n\n## Validaciones Destacadas\n- El diario de la remesa se obtiene automáticamente de la configuración de la compañía (`pnt_default_journal_id`).\n- `journal_destiny` debe ser un diario bancario válido existente en Odoo.\n- Las facturas incluidas deben existir y tener estado de pago `not_paid` o `partial`.\n- Cada factura debe tener un único apunte contable del tipo correcto (`asset_receivable` para inbound, `liability_payable` para outbound).\n- El importe de cada línea debe coincidir exactamente con el importe residual de la factura.\n- La suma de los residuales de todas las facturas debe coincidir con el campo `amount` de la cabecera.\n- Para remesas `inbound`, el campo `sdd_required_collection_date` es obligatorio.\n- El método de pago se selecciona automáticamente priorizando SEPA (`sepa_direct_debit` para inbound, `sepa_ct` para outbound).\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `MISSING_CONFIGURATION`: Configuración del servidor faltante (estado 422)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuración Personalizada del Servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o dirección IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Número de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "PaymentOrderLineSchema": {
+        "type": "object",
+        "required": [
+          "invoice_id",
+          "amount"
+        ],
+        "properties": {
+          "invoice_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la factura en Odoo."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Importe a pagar/cobrar de la factura (debe coincidir con el residual)."
+          }
+        }
+      },
+      "PaymentOrderCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "batch_type",
+          "date",
+          "journal_destiny",
+          "name",
+          "amount",
+          "lines"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP (>0)."
+          },
+          "batch_type": {
+            "type": "string",
+            "enum": [
+              "inbound",
+              "outbound"
+            ],
+            "description": "Tipo de remesa: inbound (cobro) u outbound (pago)."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha de la remesa (YYYY-MM-DD)."
+          },
+          "sdd_required_collection_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha solicitada de cobro (obligatorio para inbound)."
+          },
+          "journal_destiny": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del diario destino en Odoo (>0)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Referencia de la remesa (Total Remesa)."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Importe total de la remesa (debe coincidir con la suma de las líneas)."
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PaymentOrderLineSchema"
+            },
+            "description": "Lista de facturas a incluir en la remesa."
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/payment_orders": {
+      "post": {
+        "summary": "Crear Remesa de Cobros/Pagos",
+        "description": "Crea una remesa (account.batch.payment) y sus pagos asociados.\n\nValidaciones específicas:\n1. **Diario Origen**: Se usa el configurado en la compañía (`pnt_default_journal_id`).\n2. **Diario Destino**: Se valida `journal_destiny`.\n3. **Facturas**: Se verifica estado (`not_paid`/`partial`), existencia de apunte único (`asset_receivable`/`liability_payable`) y coincidencia de importe con residual.\n4. **Totales**: Se valida que la suma de líneas coincida con el total de la remesa.\n5. **Método de Pago**: Se auto-selecciona `sepa_direct_debit` (inbound) o `sepa_ct` (outbound).\n",
+        "operationId": "create_payment_order",
+        "tags": [
+          "Payment Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentOrderCreateRequest"
+              },
+              "example": {
+                "pnt_erp_id": 9001,
+                "batch_type": "inbound",
+                "date": "2026-02-15",
+                "sdd_required_collection_date": "2026-02-20",
+                "journal_destiny": 7,
+                "name": "REMESA-FEB-001",
+                "amount": 1500.50,
+                "lines": [
+                  {
+                    "invoice_id": 101,
+                    "amount": 500.25
+                  },
+                  {
+                    "invoice_id": 102,
+                    "amount": 1000.25
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Remesa creada correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 305,
+                    "erp_id": 9001,
+                    "values": {
+                      "pnt_erp_id": 9001,
+                      "batch_type": "inbound",
+                      "date": "2026-02-15",
+                      "sdd_required_collection_date": "2026-02-20",
+                      "journal_destiny": 7,
+                      "name": "REMESA-FEB-001",
+                      "amount": 1500.50
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "batch_type": "inbound",
+                        "name": "REMESA-FEB-001",
+                        "date": "2026-02-15",
+                        "state": "draft",
+                        "amount": 1500.50,
+                        "payment_ids": [
+                          {
+                            "id": 4001,
+                            "display_name": "PAGO/2026/001"
+                          },
+                          {
+                            "id": 4002,
+                            "display_name": "PAGO/2026/002"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_amount_mismatch": {
+                    "summary": "Importe no coincide con residual",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "lines"
+                          ],
+                          "msg": "Invoice 101: amount 500.0 does not match residual 500.25",
+                          "type": "value_error"
+                        }
+                      ]
+                    }
+                  },
+                  "total_mismatch": {
+                    "summary": "Total remesa no coincide con suma de residuales",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "lines"
+                          ],
+                          "msg": "Total residual 1500.5 does not match batch amount 1500.0",
+                          "type": "value_error"
+                        }
+                      ]
+                    }
+                  },
+                  "missing_sdd_date": {
+                    "summary": "Falta fecha cobro en inbound",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "validation_errors": [
+                        {
+                          "loc": [
+                            "sdd_required_collection_date"
+                          ],
+                          "msg": "sdd_required_collection_date is required when batch_type is 'inbound'",
+                          "type": "value_error"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - ERP ID duplicado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_KEY_VALUE",
+                  "message": "Record with provided key already exists"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Configuración faltante - Diario no configurado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "MISSING_CONFIGURATION",
+                  "message": "Required server configuration is missing: pnt_default_journal_id"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

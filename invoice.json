@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Facturas",
-    "description": "API para crear facturas (cliente y proveedor) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Factura\n- `out_invoice`: Factura de cliente\n- `out_refund`: Factura rectificativa de cliente\n- `in_invoice`: Factura de proveedor\n- `in_refund`: Factura rectificativa de proveedor\n\n## Validaciones Destacadas\n- El diario debe ser de tipo `sale` o `purchase`.\n- El diario debe tener habilitada la sincronización ERP (`pnt_synchronization_erp`).\n- Para facturas de proveedor (`in_invoice`, `in_refund`), el campo `ref` es obligatorio.\n- En facturas de cliente (`out_invoice`, `out_refund`), `date` e `invoice_date` deben ser iguales.\n- El método de pago (`preferred_payment_method_line_id`) debe ser coherente con el diario: `inbound` para ventas, `outbound` para compras.\n- La precisión decimal de `price_unit`, `quantity` y `discount` se valida según la configuración de Odoo.\n- Si se proporcionan líneas de factura, no pueden estar vacías y la base imponible total no puede ser 0.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear facturas (cliente y proveedor) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Factura\n- `out_invoice`: Factura de cliente\n- `out_refund`: Factura rectificativa de cliente\n- `in_invoice`: Factura de proveedor\n- `in_refund`: Factura rectificativa de proveedor\n\n## Validaciones Destacadas\n- El diario debe ser de tipo `sale` o `purchase`.\n- El diario debe tener habilitada la sincronización ERP (`pnt_synchronization_erp`).\n- Para facturas de proveedor (`in_invoice`, `in_refund`), el campo `ref` es obligatorio.\n- En facturas de cliente (`out_invoice`, `out_refund`), `date` e `invoice_date` deben ser iguales.\n- El método de pago (`preferred_payment_method_line_id`) debe ser coherente con el diario: `inbound` para ventas, `outbound` para compras.\n- La precisión decimal de `price_unit`, `quantity` y `discount` se valida según la configuración de Odoo.\n- Si se proporcionan líneas de factura, no pueden estar vacías.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -69,7 +69,7 @@
           },
           "quantity": {
             "type": "number",
-            "description": "Cantidad (no puede ser 0)."
+            "description": "Cantidad."
           },
           "price_unit": {
             "type": "number",
@@ -92,11 +92,11 @@
           },
           "quantity_erp": {
             "type": "number",
-            "description": "Cantidad ERP (no puede ser 0)."
+            "description": "Cantidad ERP."
           },
           "extra_operations_erp": {
             "type": "number",
-            "description": "Operaciones extra ERP (no puede ser 0)."
+            "description": "Operaciones extra ERP."
           },
           "special_electricity_tax": {
             "type": "boolean",
@@ -244,7 +244,9 @@
                     "account_id": 700,
                     "quantity_erp": 10,
                     "extra_operations_erp": 1,
-                    "tax_ids": [1]
+                    "tax_ids": [
+                      1
+                    ]
                   }
                 ]
               }
@@ -356,25 +358,6 @@
                             "journal_id"
                           ],
                           "msg": "journal is not enabled for ERP synchronization",
-                          "type": "value_error"
-                        }
-                      ]
-                    }
-                  },
-                  "quantity_zero": {
-                    "summary": "Cantidad no puede ser 0",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "invoice_line_ids",
-                            0,
-                            "quantity"
-                          ],
-                          "msg": "quantity cannot be 0",
                           "type": "value_error"
                         }
                       ]
