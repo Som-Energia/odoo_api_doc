@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Partners",
-    "description": "API para obtener, crear y actualizar partners (clientes y proveedores) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Partner\n- **Cliente** (is_customer=True): Partners clientes\n- **Proveedor** (is_supplier=True): Partners proveedores\n- **Empresa** (is_company=True): Entidades jurídicas\n- **Particular** (is_company=False): Personas físicas\n\n## Tipos de Contacto\n- **contact**: Contacto regular (obligatorio para empresas)\n- **invoice**: Dirección de facturación (obligatorio cuando se proporciona parent_id)\n- **delivery**: Dirección de entrega (Solo lectura)\n- **other**: Otro tipo de dirección (Solo lectura)\n\n## Reglas de Validación para Creación de Partners\n\n### Cuando is_company=True (Empresa):\n- `vat` es **obligatorio**\n- `type` debe ser **\"contact\"**\n- `parent_id` **no** debe establecerse (no se pueden crear contactos hijos de empresa)\n- `comercial` **puede** establecerse\n\n### Cuando is_company=False (Particular):\n- `comercial` **no** debe establecerse\n- `parent_id` es **obligatorio solo si se envía `type`**, y entonces `type` debe ser **\"invoice\"**\n\n### Cuando se proporciona parent_id (Contacto Hijo):\n- `type` debe ser **\"invoice\"**\n- Solo válido para particulares (is_company=False)\n\n### Otras Validaciones:\n- `pnt_erp_id` es **obligatorio** y debe ser > 0\n- `name` es **obligatorio** y debe tener al menos 1 carácter (máx. 256)\n- `is_customer`, `is_supplier` e `is_company` son **obligatorios**\n- `lang` debe ser uno de: \"en_GB\", \"es_ES\", \"ca_ES\"\n- Todos los campos de texto se recortan automáticamente (se eliminan espacios en blanco)\n- Los campos extra no definidos en el esquema son rechazados\n\n## Reglas de Validación para Actualización de Partners\n\n- Solo se permite establecer `is_customer` o `is_supplier` a True si actualmente están en False (no se pueden desactivar).\n- **No se permite** modificar `is_customer` o `is_supplier` para empresas (`is_company=True`).\n- El campo `comercial` solo puede establecerse cuando `is_company` es True.\n- No se pueden modificar los campos `vat`, `is_company`, `type` ni `parent_id`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para obtener, crear y actualizar partners (clientes y proveedores) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Partner\n- **Cliente** (is_customer=True): Partners clientes\n- **Proveedor** (is_supplier=True): Partners proveedores\n- **Empresa** (is_company=True): Entidades jurídicas\n- **Particular** (is_company=False): Personas físicas\n\n## Tipos de Contacto\n- **contact**: Contacto regular (obligatorio para empresas)\n- **invoice**: Dirección de facturación (obligatorio cuando se proporciona parent_id)\n- **delivery**: Dirección de entrega (Solo lectura)\n- **other**: Otro tipo de dirección (Solo lectura)\n\n## Reglas de Validación para Creación de Partners\n\n### Cuando is_company=True (Empresa):\n- `vat` es **obligatorio**\n- `type` debe ser **\"contact\"**\n- `parent_id` **no** debe establecerse (no se pueden crear contactos hijos de empresa)\n- `comercial` **puede** establecerse\n\n### Cuando is_company=False (Particular):\n- `comercial` **no** debe establecerse\n- `parent_id` es **obligatorio**\n- `type` debe ser **\"invoice\"**\n\n### Cuando se proporciona parent_id (Contacto Hijo):\n- `type` debe ser **\"invoice\"**\n- Solo válido para particulares (is_company=False)\n\n### Otras Validaciones:\n- `pnt_erp_id` es **obligatorio** y debe ser > 0\n- `name` es **obligatorio** y debe tener al menos 1 carácter (máx. 256)\n- `is_customer`, `is_supplier` e `is_company` son **obligatorios**\n- `lang` debe ser uno de: \"en_GB\", \"es_ES\", \"ca_ES\"\n- Todos los campos de texto se recortan automáticamente (se eliminan espacios en blanco)\n- Los campos extra no definidos en el esquema son rechazados\n\n## Reglas de Validación para Actualización de Partners\n\n- Solo se permite establecer `is_customer` o `is_supplier` a True si actualmente están en False (no se pueden desactivar).\n- **No se permite** modificar `is_customer` o `is_supplier` para empresas (`is_company=True`).\n- El campo `comercial` solo puede establecerse cuando `is_company` es True.\n- No se pueden modificar los campos `vat`, `is_company`, `type` ni `parent_id`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -82,25 +82,31 @@
         "properties": {
           "pnt_erp_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP. Debe ser mayor que 0."
           },
           "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Nombre del partner. De 1 a 256 caracteres."
           },
           "vat": {
             "type": "string",
-            "maxLength": 64
+            "maxLength": 64,
+            "description": "Número de identificación fiscal (NIF/CIF). Obligatorio para empresas. Máximo 64 caracteres."
           },
           "is_customer": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indica si el partner es un cliente."
           },
           "is_supplier": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indica si el partner es un proveedor."
           },
           "is_company": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indica si el partner es una empresa (`true`) o un particular (`false`)."
           },
           "lang": {
             "type": "string",
@@ -108,90 +114,111 @@
               "en_GB",
               "es_ES",
               "ca_ES"
-            ]
+            ],
+            "description": "Código de idioma del partner. Valores permitidos: `en_GB`, `es_ES`, `ca_ES`."
           },
           "type": {
             "type": "string",
             "enum": [
               "contact",
               "invoice"
-            ]
+            ],
+            "description": "Tipo de dirección del partner. `contact` para empresas, `invoice` para contactos hijos."
           },
           "street": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Dirección línea 1. Máximo 256 caracteres."
           },
           "street2": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Dirección línea 2. Máximo 256 caracteres."
           },
           "country_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del país en Odoo. Debe ser mayor que 0."
           },
           "state_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la provincia/estado en Odoo. Debe ser mayor que 0."
           },
           "city": {
             "type": "string",
-            "maxLength": 64
+            "maxLength": 64,
+            "description": "Nombre de la ciudad. Máximo 64 caracteres."
           },
           "zip": {
             "type": "string",
-            "maxLength": 24
+            "maxLength": 24,
+            "description": "Código postal. Máximo 24 caracteres."
           },
           "phone": {
             "type": "string",
-            "maxLength": 32
+            "maxLength": 32,
+            "description": "Teléfono fijo. Máximo 32 caracteres."
           },
           "mobile": {
             "type": "string",
-            "maxLength": 32
+            "maxLength": 32,
+            "description": "Teléfono móvil. Máximo 32 caracteres."
           },
           "email": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Dirección de correo electrónico. Máximo 256 caracteres."
           },
           "comercial": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Nombre comercial. Solo permitido para empresas (`is_company=true`). Máximo 256 caracteres."
           },
           "comment": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "Notas internas. Máximo 1000 caracteres."
           },
           "parent_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del partner padre en Odoo. Obligatorio para particulares con `type=invoice`. Debe ser mayor que 0."
           },
           "property_payment_term_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del plazo de pago de cliente en Odoo. Debe ser mayor que 0."
           },
           "property_supplier_payment_term_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del plazo de pago de proveedor en Odoo. Debe ser mayor que 0."
           },
           "property_inbound_payment_method_line_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del método de cobro en Odoo. Debe ser mayor que 0."
           },
           "property_outbound_payment_method_line_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del método de pago en Odoo. Debe ser mayor que 0."
           },
           "property_account_position_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la posición fiscal en Odoo. Debe ser mayor que 0."
           },
           "property_account_payable_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la cuenta de pago en Odoo. Debe ser mayor que 0."
           },
           "property_account_receivable_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la cuenta por cobrar en Odoo. Debe ser mayor que 0."
           }
         }
       },
@@ -201,13 +228,16 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Nombre del partner. De 1 a 256 caracteres."
           },
           "is_customer": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Establece el partner como cliente. Solo se permite cambiar de `false` a `true`. No disponible para empresas."
           },
           "is_supplier": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Establece el partner como proveedor. Solo se permite cambiar de `false` a `true`. No disponible para empresas."
           },
           "lang": {
             "type": "string",
@@ -215,86 +245,105 @@
               "en_GB",
               "es_ES",
               "ca_ES"
-            ]
+            ],
+            "description": "Código de idioma del partner. Valores permitidos: `en_GB`, `es_ES`, `ca_ES`."
           },
           "street": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Dirección línea 1. Máximo 256 caracteres."
           },
           "street2": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Dirección línea 2. Máximo 256 caracteres."
           },
           "country_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del país en Odoo. Debe ser mayor que 0."
           },
           "state_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la provincia/estado en Odoo. Debe ser mayor que 0."
           },
           "city": {
             "type": "string",
-            "maxLength": 64
+            "maxLength": 64,
+            "description": "Nombre de la ciudad. Máximo 64 caracteres."
           },
           "zip": {
             "type": "string",
-            "maxLength": 24
+            "maxLength": 24,
+            "description": "Código postal. Máximo 24 caracteres."
           },
           "phone": {
             "type": "string",
-            "maxLength": 32
+            "maxLength": 32,
+            "description": "Teléfono fijo. Máximo 32 caracteres."
           },
           "mobile": {
             "type": "string",
-            "maxLength": 32
+            "maxLength": 32,
+            "description": "Teléfono móvil. Máximo 32 caracteres."
           },
           "email": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Dirección de correo electrónico. Máximo 256 caracteres."
           },
           "comercial": {
             "type": "string",
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Nombre comercial. Solo permitido cuando el partner es una empresa. Máximo 256 caracteres."
           },
           "comment": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "Notas internas. Máximo 1000 caracteres."
           },
           "property_payment_term_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del plazo de pago de cliente en Odoo. Debe ser mayor que 0."
           },
           "property_supplier_payment_term_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del plazo de pago de proveedor en Odoo. Debe ser mayor que 0."
           },
           "property_inbound_payment_method_line_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del método de cobro en Odoo. Debe ser mayor que 0."
           },
           "property_outbound_payment_method_line_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del método de pago en Odoo. Debe ser mayor que 0."
           },
           "property_account_position_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la posición fiscal en Odoo. Debe ser mayor que 0."
           },
           "property_account_payable_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la cuenta de pago en Odoo. Debe ser mayor que 0."
           },
           "property_account_receivable_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID de la cuenta por cobrar en Odoo. Debe ser mayor que 0."
           }
         }
       }
     }
   },
   "paths": {
-    "/partner/{type}/{vat_code}": {
+    "/partners/{type}/{vat_code}": {
       "get": {
         "summary": "Obtener Partner por VAT",
         "description": "Obtiene un partner específico por código VAT y tipo.\n\nEl endpoint busca una coincidencia exacta del código VAT saneado.\nLos espacios en blanco se recortan del código antes de buscar.\nFiltra los resultados por tipo de empresa (empresa o particular) y excluye los contactos hijos.\nDevuelve 404 si no existe ningún registro coincidente.\n",
@@ -362,6 +411,18 @@
               }
             }
           },
+          "400": {
+            "description": "Solicitud incorrecta - Parámetro type inválido",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_PARAMETERS",
+                  "message": "company parameter must be 'other' if not is a company or 'company' if is a company"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
@@ -401,7 +462,7 @@
         }
       }
     },
-    "/partner/contact/{parent_id}/{type}": {
+    "/partners/contact/{parent_id}/{type}": {
       "get": {
         "summary": "Obtener Contactos del Partner",
         "description": "Obtiene los contactos de un partner específico por ID padre y tipo de contacto.\n\nEl endpoint busca contactos que pertenecen al partner padre especificado.\nFiltra los resultados por tipo de contacto (contact, invoice, delivery, other).\nDevuelve 404 si no existen contactos coincidentes.\n",
@@ -467,6 +528,18 @@
                       ]
                     }
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Tipo de contacto inválido",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_PARAMETERS",
+                  "message": "valid types are 'contact', 'invoice', 'delivery' or 'other'"
                 }
               }
             }
@@ -622,7 +695,7 @@
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
-                      "message": "Type must be 'contact' when is_company is True"
+                      "message": "type must be 'contact' when is_company is True"
                     }
                   },
                   "parent_id_not_allowed_for_company": {
@@ -630,7 +703,7 @@
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
-                      "message": "Field parent_id must not be set when is_company is True"
+                      "message": "field parent_id must not be set when is_company is True"
                     }
                   },
                   "comercial_not_allowed_for_companies": {
@@ -638,7 +711,7 @@
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
-                      "message": "Field comercial can only be set when is_company is True"
+                      "message": "field comercial can only be set when is_company is True"
                     }
                   },
                   "type_invoice_required_for_child": {
@@ -646,7 +719,7 @@
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
-                      "message": "Type must be 'invoice' when parent_id is provided"
+                      "message": "type must be 'invoice' when parent_id is provided"
                     }
                   },
                   "invalid_lang": {
@@ -708,7 +781,7 @@
         }
       }
     },
-    "/partner/{odoo_id}/{erp_id}": {
+    "/partners/{odoo_id}/{erp_id}": {
       "patch": {
         "summary": "Actualizar Partner",
         "description": "Actualiza un partner existente por ID de Odoo e ID de ERP.\n\nEl endpoint valida los datos de entrada y actualiza el registro del partner.\n\n### Reglas de Validación:\n\n- Solo se permite establecer `is_customer` o `is_supplier` a True si actualmente están en False (no se permite desactivarlos).\n- **No se permite** modificar `is_customer` o `is_supplier` para empresas (`is_company=True`).\n- El campo `comercial` solo puede establecerse cuando `is_company` es True.\n- No se pueden modificar los campos `vat`, `is_company`, `type` ni `parent_id`.\n\nDevuelve 404 si no existe el partner.\n",
@@ -822,6 +895,14 @@
                       "success": false,
                       "error_code": "INVALID_FOREIGN_KEY",
                       "message": "Invalid foreign key: insert or update on table \"res_partner\" violates foreign key constraint"
+                    }
+                  },
+                  "cannot_change_company_ranks": {
+                    "summary": "No se pueden cambiar is_customer/is_supplier para empresas",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "cannot change is_customer or is_supplier for company partners"
                     }
                   }
                 }

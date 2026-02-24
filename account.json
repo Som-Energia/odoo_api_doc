@@ -81,7 +81,7 @@
     }
   },
   "paths": {
-    "/account/{code}": {
+    "/accounts/{code}": {
       "get": {
         "summary": "Obtener Cuenta",
         "description": "Obtiene una cuenta específica por su código.\n\nEl endpoint busca una coincidencia exacta del código de cuenta saneado.\nLos espacios en blanco se recortan del código antes de buscar.\nDevuelve 404 si no existe ningún registro coincidente.\n",
@@ -115,11 +115,25 @@
                     "name": "700000 - Ingresos por ventas",
                     "metadata": [
                       {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
                         "code": "700000",
                         "name": "Ingresos por ventas"
                       }
                     ]
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Error de validación de Odoo",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_PARAMETERS",
+                  "message": "Error description from Odoo"
                 }
               }
             }
@@ -166,7 +180,7 @@
     "/accounts": {
       "post": {
         "summary": "Crear Cuenta",
-        "description": "Crea una nueva cuenta contable.\n\nEl endpoint valida los datos de entrada y crea un nuevo registro de cuenta.\nAdemás, crea automáticamente la misma cuenta (sin ERP ID) en todas las demás compañías donde no exista.\nLas cuentas replicadas se devuelven dentro de `metadata[0].new_accounts_by_company`.\n\nDevuelve 409 si ya existe una cuenta duplicada.\n",
+        "description": "Crea una nueva cuenta contable.\n\nEl endpoint valida los datos de entrada y crea un nuevo registro de cuenta.\nAdemás, crea automáticamente la misma cuenta (sin ERP ID) en todas las demás compañías donde no exista.\nLas cuentas replicadas se devuelven dentro de `metadata[0].new_accounts_by_company`.\n\nNo se permiten campos adicionales en el cuerpo de la solicitud (extra fields forbidden).\n\nDevuelve 409 si ya existe una cuenta duplicada.\n",
         "operationId": "create_account",
         "tags": [
           "Cuentas"
@@ -240,15 +254,17 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "type": "missing",
-                          "loc": [
-                            "code"
-                          ],
-                          "msg": "Field required"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "missing",
+                            "loc": [
+                              "code"
+                            ],
+                            "msg": "Field required"
+                          }
+                        ]
+                      }
                     }
                   },
                   "invalid_value": {
@@ -257,16 +273,18 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "type": "string_too_short",
-                          "loc": [
-                            "name"
-                          ],
-                          "msg": "String should have at least 1 character",
-                          "input": ""
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "string_too_short",
+                            "loc": [
+                              "name"
+                            ],
+                            "msg": "String should have at least 1 character",
+                            "input": ""
+                          }
+                        ]
+                      }
                     }
                   }
                 }

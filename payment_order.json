@@ -66,7 +66,8 @@
           "amount": {
             "type": "number",
             "minimum": 0,
-            "description": "Importe a pagar/cobrar de la factura (debe coincidir con el residual)."
+            "exclusiveMinimum": true,
+            "description": "Importe a pagar/cobrar. Debe ser estrictamente >0 y coincidir con el residual."
           }
         }
       },
@@ -156,7 +157,7 @@
                 "sdd_required_collection_date": "2026-02-20",
                 "journal_destiny": 7,
                 "name": "REMESA-FEB-001",
-                "amount": 1500.50,
+                "amount": 1500.5,
                 "lines": [
                   {
                     "invoice_id": 101,
@@ -189,27 +190,12 @@
                       "sdd_required_collection_date": "2026-02-20",
                       "journal_destiny": 7,
                       "name": "REMESA-FEB-001",
-                      "amount": 1500.50
+                      "amount": 1500.5
                     },
                     "metadata": [
                       {
                         "company_id": 1,
-                        "company_name": "Compañía Principal",
-                        "batch_type": "inbound",
-                        "name": "REMESA-FEB-001",
-                        "date": "2026-02-15",
-                        "state": "draft",
-                        "amount": 1500.50,
-                        "payment_ids": [
-                          {
-                            "id": 4001,
-                            "display_name": "PAGO/2026/001"
-                          },
-                          {
-                            "id": 4002,
-                            "display_name": "PAGO/2026/002"
-                          }
-                        ]
+                        "company_name": "Compañía Principal"
                       }
                     ]
                   }
@@ -228,15 +214,17 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "lines"
-                          ],
-                          "msg": "Invoice 101: amount 500.0 does not match residual 500.25",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "Invoice 101: amount 500.0 does not match residual 500.25",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   },
                   "total_mismatch": {
@@ -245,15 +233,17 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "lines"
-                          ],
-                          "msg": "Total residual 1500.5 does not match batch amount 1500.0",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "Total residual 1500.5 does not match batch amount 1500.0",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   },
                   "missing_sdd_date": {
@@ -262,15 +252,93 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "sdd_required_collection_date"
-                          ],
-                          "msg": "sdd_required_collection_date is required when batch_type is 'inbound'",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "sdd_required_collection_date"
+                            ],
+                            "msg": "sdd_required_collection_date is required when batch_type is 'inbound'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invoice_not_found": {
+                    "summary": "Factura no encontrada",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "Invoice not found: 999",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_payment_state": {
+                    "summary": "Estado de pago de factura inválido",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "Invoice 101 has invalid payment state: 'paid'. Expected: not_paid or partial",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "no_payment_method": {
+                    "summary": "Sin método de pago disponible para el diario",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "journal_id"
+                            ],
+                            "msg": "No payment method available for batch_type 'inbound' in journal 'Banco'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "wrong_account_lines": {
+                    "summary": "Factura con número incorrecto de apuntes del tipo requerido",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "Invoice 101 must have exactly 1 asset_receivable line, found: 0",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   }
                 }

@@ -123,7 +123,8 @@
             "items": {
               "$ref": "#/components/schemas/EntryLineSchema"
             },
-            "description": "Líneas del asiento."
+            "description": "Líneas del asiento. Opcional; si se omite o se envía `null`, el asiento se crea sin líneas.",
+            "nullable": true
           }
         }
       }
@@ -208,20 +209,45 @@
                         "number": "ASIENTO/2026/001",
                         "ref": "123",
                         "date": "2026-02-02",
-                        "journal_id": 10,
+                        "journal_id": [
+                          {
+                            "id": 10,
+                            "display_name": "Diario General"
+                          }
+                        ],
                         "lines": [
                           {
                             "id": 3001,
-                            "account_id": 1227,
-                            "partner_id": 1669,
+                            "account_id": [
+                              {
+                                "id": 1227,
+                                "display_name": "Cuenta contable"
+                              }
+                            ],
+                            "partner_id": [
+                              {
+                                "id": 1669,
+                                "display_name": "Partner"
+                              }
+                            ],
                             "debit": 123,
                             "credit": 0,
                             "name": "aass"
                           },
                           {
                             "id": 3002,
-                            "account_id": 1227,
-                            "partner_id": 1669,
+                            "account_id": [
+                              {
+                                "id": 1227,
+                                "display_name": "Cuenta contable"
+                              }
+                            ],
+                            "partner_id": [
+                              {
+                                "id": 1669,
+                                "display_name": "Partner"
+                              }
+                            ],
                             "debit": 0,
                             "credit": 123,
                             "name": "aass"
@@ -245,15 +271,17 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "pnt_erp_id"
-                          ],
-                          "msg": "Field required",
-                          "type": "missing"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "pnt_erp_id"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ]
+                      }
                     }
                   },
                   "decimals_not_allowed": {
@@ -262,17 +290,19 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "lines",
-                            0,
-                            "debit"
-                          ],
-                          "msg": "Amount has 4 decimals; allowed (2)",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines",
+                              0,
+                              "debit"
+                            ],
+                            "msg": "Amount has 4 decimals; allowed (2)",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   },
                   "invalid_foreign_key": {
@@ -281,15 +311,17 @@
                       "success": false,
                       "error_code": "INVALID_FOREIGN_KEY",
                       "message": "Invalid foreign key reference: account.journal(9999)",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "journal_id"
-                          ],
-                          "msg": "Invalid journal_id",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "journal_id"
+                            ],
+                            "msg": "Invalid journal_id",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   },
                   "invalid_journal_type": {
@@ -298,15 +330,36 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "journal_id"
-                          ],
-                          "msg": "Journal type must be 'general', but it is 'sale'",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "journal_id"
+                            ],
+                            "msg": "Journal type must be 'general', but it is 'sale'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "journal_not_synced": {
+                    "summary": "Diario no habilitado para sincronización ERP",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "journal_id"
+                            ],
+                            "msg": "journal is not enabled for ERP synchronization",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   }
                 }

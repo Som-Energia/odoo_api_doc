@@ -97,7 +97,7 @@
     }
   },
   "paths": {
-    "/bank/{partner_id}": {
+    "/banks/{partner_id}": {
       "get": {
         "summary": "Obtener Cuenta Bancaria",
         "description": "Recupera una cuenta bancaria específica para un partner dado por número de cuenta.\n\nEl endpoint busca una coincidencia exacta del número de cuenta saneado asociado al partner especificado. Devuelve 404 si no existe ningún registro coincidente.\n",
@@ -150,6 +150,18 @@
               }
             }
           },
+          "400": {
+            "description": "Solicitud incorrecta - Error de validación de Odoo",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_PARAMETERS",
+                  "message": "Error description from Odoo"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
@@ -192,7 +204,7 @@
     "/banks": {
       "post": {
         "summary": "Crear Cuenta Bancaria",
-        "description": "Crea una nueva cuenta bancaria para un proveedor.\n\nEl endpoint identifica y asigna automáticamente el banco a partir del número de cuenta si es posible. Devuelve 409 si ya existe una cuenta duplicada.\n",
+        "description": "Crea una nueva cuenta bancaria para un proveedor.\n\nEl endpoint identifica y asigna automáticamente el banco a partir del número de cuenta si es posible.\n\nNo se permiten campos adicionales en el cuerpo de la solicitud (extra fields forbidden).\n\nDevuelve 409 si ya existe una cuenta duplicada.\n",
         "operationId": "create_bank_number",
         "tags": [
           "Cuentas Bancarias"
@@ -231,8 +243,7 @@
                     "metadata": [
                       {
                         "company_id": 1,
-                        "company_name": "Compañía Principal",
-                        "acc_number": "ES7620770024003102575766"
+                        "company_name": "Compañía Principal"
                       }
                     ]
                   }
@@ -251,16 +262,18 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "type": "value_error",
-                          "loc": [
-                            "acc_number"
-                          ],
-                          "msg": "String should have at least 1 character",
-                          "input": ""
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "value_error",
+                            "loc": [
+                              "acc_number"
+                            ],
+                            "msg": "String should have at least 1 character",
+                            "input": ""
+                          }
+                        ]
+                      }
                     }
                   },
                   "invalid_checksum": {
@@ -269,15 +282,17 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "loc": [
-                            "acc_number"
-                          ],
-                          "msg": "Invalid checksum digits",
-                          "type": "value_error"
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "acc_number"
+                            ],
+                            "msg": "Invalid checksum digits",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
                     }
                   }
                 }

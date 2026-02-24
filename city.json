@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Ciudades",
-    "description": "API para obtener información de ciudades por código INE en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para obtener información de ciudades por código INE en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -71,7 +71,7 @@
     }
   },
   "paths": {
-    "/city/{code_ine}": {
+    "/cities/{code_ine}": {
       "get": {
         "summary": "Obtener Ciudad",
         "description": "Recupera una ciudad específica por su código INE.\n\nEl endpoint busca una coincidencia (insensible a mayúsculas/minúsculas) del código INE saneado. Devuelve 404 si no existe ningún registro coincidente.\n",
@@ -110,6 +110,18 @@
                       }
                     ]
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Error de validación de Odoo",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_PARAMETERS",
+                  "message": "Error description from Odoo"
                 }
               }
             }

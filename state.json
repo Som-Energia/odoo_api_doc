@@ -82,28 +82,32 @@
         "properties": {
           "pnt_erp_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP. Debe ser mayor que 0."
           },
           "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 256
+            "maxLength": 256,
+            "description": "Nombre de la provincia/estado. De 1 a 256 caracteres."
           },
           "code": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 64
+            "maxLength": 64,
+            "description": "Código de la provincia/estado. De 1 a 64 caracteres. Se convierte automáticamente a mayúsculas."
           },
           "country_id": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "ID del país en Odoo al que pertenece la provincia. Debe ser mayor que 0."
           }
         }
       }
     }
   },
   "paths": {
-    "/state/{code_country}/{code}": {
+    "/states/{code_country}/{code}": {
       "get": {
         "summary": "Obtener Estado/Provincia",
         "description": "Recupera un estado/provincia específico por código de país y código de estado.\n\nEl endpoint busca una coincidencia (insensible a mayúsculas/minúsculas) del código de estado saneado dentro del país especificado. Devuelve 404 si no existe ningún registro coincidente.\n",
@@ -258,16 +262,18 @@
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
                       "message": "Validation error in request parameters",
-                      "validation_errors": [
-                        {
-                          "type": "value_error",
-                          "loc": [
-                            "name"
-                          ],
-                          "msg": "String should have at least 1 character",
-                          "input": ""
-                        }
-                      ]
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "value_error",
+                            "loc": [
+                              "name"
+                            ],
+                            "msg": "String should have at least 1 character",
+                            "input": ""
+                          }
+                        ]
+                      }
                     }
                   },
                   "foreign_key_error": {

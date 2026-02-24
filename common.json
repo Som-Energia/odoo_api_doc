@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Entidades Comunes",
-    "description": "API para recuperar registros de Odoo por ERP ID en múltiples tipos de entidades\ny actualizar los ERP IDs para registros existentes.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Entidades Permitidas\n- `account`: account.account (Cuentas contables)\n- `bank`: res.partner.bank (Bancos)\n- `city`: res.city (Ciudades)\n- `country`: res.country (Países)\n- `entry`: account.move (Asientos contables)\n- `partner`: res.partner (Partners)\n- `state`: res.country.state (Provincias/Estados)\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_ENTITY`: Tipo de entidad inválido (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `DUPLICATE_ERP_ID`: El ERP ID ya existe (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para recuperar registros de Odoo por ERP ID en múltiples tipos de entidades\ny actualizar los ERP IDs para registros existentes.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Entidades Permitidas\n- `account`: account.account (Cuentas contables)\n- `bank`: res.partner.bank (Cuentas bancarias)\n- `city`: res.city (Ciudades)\n- `country`: res.country (Países)\n- `entry`: account.move (Asientos contables)\n- `invoice`: account.move (Facturas)\n- `partner`: res.partner (Partners)\n- `payment`: account.payment (Pagos)\n- `state`: res.country.state (Provincias/Estados)\n\n## Notas sobre campos de respuesta\n- El campo `erp_id` puede ser un entero (cuando está asignado) o `false` (booleano JSON) cuando el registro no tiene ERP ID asignado.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_ENTITY`: Tipo de entidad inválido (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `DUPLICATE_ERP_ID`: El ERP ID ya existe (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -61,13 +61,26 @@
         "type": "object",
         "properties": {
           "odoo_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "ID interno del registro en Odoo."
           },
           "erp_id": {
-            "type": "integer"
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              }
+            ],
+            "description": "ID del registro en el sistema ERP. Devuelve `false` si no tiene ERP ID asignado."
           },
           "model": {
-            "type": "string"
+            "type": "string",
+            "description": "Nombre técnico del modelo de Odoo (ej. `res.country`)."
           }
         }
       },
@@ -161,7 +174,7 @@
         }
       }
     },
-    "/entity/{entity}/{erp_id}": {
+    "/entities/{entity}/{erp_id}": {
       "get": {
         "summary": "Obtener Registro por ERP ID",
         "description": "Recupera el ID de Odoo para un tipo de entidad y ERP ID dados.\n\nDevuelve 404 si no existe ningún registro coincidente.\n",
@@ -174,7 +187,7 @@
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "El tipo de entidad (account, bank, city, country, partner o state)",
+            "description": "El tipo de entidad (account, bank, city, country, entry, invoice, partner, payment o state)",
             "schema": {
               "type": "string",
               "enum": [
@@ -183,7 +196,9 @@
                 "city",
                 "country",
                 "entry",
+                "invoice",
                 "partner",
+                "payment",
                 "state"
               ],
               "example": "country"
@@ -271,7 +286,7 @@
         }
       }
     },
-    "/entity/{entity}/{odoo_id}/{erp_id}": {
+    "/entities/{entity}/{odoo_id}/{erp_id}": {
       "patch": {
         "summary": "Establecer ERP ID",
         "description": "Establece el ERP ID para un registro de Odoo dado.\n\nDevuelve 409 si el ERP ID ya existe para otro registro.\n",
@@ -284,7 +299,7 @@
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "El tipo de entidad (account, bank, city, country, partner o state)",
+            "description": "El tipo de entidad (account, bank, city, country, entry, invoice, partner, payment o state)",
             "schema": {
               "type": "string",
               "enum": [
@@ -293,7 +308,9 @@
                 "city",
                 "country",
                 "entry",
+                "invoice",
                 "partner",
+                "payment",
                 "state"
               ],
               "example": "country"
