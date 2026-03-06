@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Remesas de Pagos/Cobros",
-    "description": "API para crear remesas (account.batch.payment) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Remesa\n- `inbound`: Remesa de cobros (Domiciliación bancaria)\n- `outbound`: Remesa de pagos (Transferencia de crédito)\n\n## Validaciones Destacadas\n- El diario de la remesa se obtiene automáticamente de la configuración de la compañía (`pnt_default_journal_id`).\n- `journal_destiny` debe ser un diario bancario válido existente en Odoo.\n- Las facturas incluidas deben existir y tener estado de pago `not_paid` o `partial`.\n- Cada factura debe tener un único apunte contable del tipo correcto (`asset_receivable` para inbound, `liability_payable` para outbound).\n- El importe de cada línea debe coincidir exactamente con el importe residual de la factura.\n- La suma de los residuales de todas las facturas debe coincidir con el campo `amount` de la cabecera.\n- Para remesas `inbound`, el campo `sdd_required_collection_date` es obligatorio.\n- Para remesas `outbound`, el campo `method_id` es obligatorio y en `inbound` no debe enviarse.\n- El método de pago se selecciona automáticamente priorizando SEPA (`sepa_direct_debit` para inbound, `sepa_ct` para outbound).\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `MISSING_CONFIGURATION`: Configuración del servidor faltante (estado 422)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear remesas (account.batch.payment) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Remesa\n- `inbound`: Remesa de cobros (Domiciliación bancaria)\n- `outbound`: Remesa de pagos (Transferencia de crédito)\n\n## Validaciones Destacadas\n- El diario de la remesa se obtiene automáticamente de la configuración de la compañía (`pnt_default_journal_id`).\n- `journal_destiny` debe ser un diario bancario válido existente en Odoo.\n- Las facturas incluidas deben existir y tener estado de pago `not_paid` o `partial`.\n- Para cada factura se valida el residual de líneas del tipo correcto (`asset_receivable` para inbound, `liability_payable` para outbound).\n- El importe de cada línea debe coincidir exactamente con el importe residual validado de la factura.\n- La suma de los residuales de todas las facturas debe coincidir con el campo `amount` de la cabecera.\n- Para remesas `inbound`, el campo `sdd_required_collection_date` es obligatorio.\n- `method_id` es opcional en la petición.\n- El método de pago se selecciona automáticamente priorizando SEPA (`sepa_direct_debit` para inbound, `sepa_ct` para outbound).\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `MISSING_CONFIGURATION`: Configuración del servidor faltante (estado 422)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "contact": {
       "name": "Punt Sistemes"
@@ -125,7 +125,7 @@
           "method_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID del método de pago de Odoo (obligatorio para outbound; no enviar en inbound)."
+            "description": "ID del método de pago de Odoo (opcional)."
           },
           "lines": {
             "type": "array",
@@ -135,23 +135,7 @@
             },
             "description": "Lista de facturas a incluir en la remesa."
           }
-        },
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["batch_type"],
-            "properties": {
-              "batch_type": {"enum": ["inbound"]}
-            }
-          },
-          {
-            "type": "object",
-            "required": ["batch_type", "method_id"],
-            "properties": {
-              "batch_type": {"enum": ["outbound"]}
-            }
-          }
-        ]
+        }
       }
     }
   },
@@ -159,7 +143,7 @@
     "/payment_orders": {
       "post": {
         "summary": "Crear Remesa de Cobros/Pagos",
-        "description": "Crea una remesa (account.batch.payment) y sus pagos asociados.\n\nValidaciones específicas:\n1. **Diario Origen**: Se usa el configurado en la compañía (`pnt_default_journal_id`).\n2. **Diario Destino**: Se valida `journal_destiny`.\n3. **Facturas**: Se verifica estado (`not_paid`/`partial`), existencia de apunte único (`asset_receivable`/`liability_payable`) y coincidencia de importe con residual.\n4. **Totales**: Se valida que la suma de líneas coincida con el total de la remesa.\n5. **Método de Pago**: Se auto-selecciona `sepa_direct_debit` (inbound) o `sepa_ct` (outbound).\n",
+        "description": "Crea una remesa (account.batch.payment) y sus pagos asociados.\n\nValidaciones específicas:\n1. **Diario Origen**: Se usa el configurado en la compañía (`pnt_default_journal_id`).\n2. **Diario Destino**: Se valida `journal_destiny`.\n3. **Facturas**: Se verifica estado (`not_paid`/`partial`) y coincidencia de importe con residual.\n4. **Totales**: Se valida que la suma de líneas coincida con el total de la remesa.\n5. **Método de Pago**: Se auto-selecciona `sepa_direct_debit` (inbound) o `sepa_ct` (outbound).\n",
         "operationId": "create_payment_order",
         "tags": [
           "Payment Orders"
@@ -360,44 +344,6 @@
                               "journal_id"
                             ],
                             "msg": "No payment method available for batch_type 'inbound' in journal 'Banco'",
-                            "type": "value_error"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "wrong_account_lines": {
-                    "summary": "Factura con número incorrecto de apuntes del tipo requerido",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "data": {
-                        "validation_errors": [
-                          {
-                            "loc": [
-                              "lines"
-                            ],
-                            "msg": "Invoice 101 must have exactly 1 asset_receivable line, found: 0",
-                            "type": "value_error"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "method_id_outbound": {
-                    "summary": "method_id no permitido en outbound",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "data": {
-                        "validation_errors": [
-                          {
-                            "loc": [
-                              "method_id"
-                            ],
-                            "msg": "method_id is only allowed when batch_type is 'inbound'",
                             "type": "value_error"
                           }
                         ]
