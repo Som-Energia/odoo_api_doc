@@ -1,0 +1,341 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Gestión de Pagos Fraccionados de Facturas",
+    "description": "API para registrar pagos fraccionados de facturas de cliente en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Notas funcionales\n- El endpoint solo admite facturas de cliente (`out_invoice`).\n- La factura debe estar contabilizada y en estado de pago `not_paid` antes de crear los pagos.\n- El `erp_id` de cabecera debe coincidir exactamente con el `pnt_erp_id` almacenado en la factura identificada por `invoice_id`.\n- El método de pago recibido en cabecera (`payment_method_id`) debe corresponder al ID interno de Odoo de una `account.payment.method.line` entrante en la compañía; si la línea existe pero es `outbound` o pertenece a otra compañía, la petición también se rechaza.\n- Se crea un pago por cada línea del payload mediante `account.payment.register`.\n- Cada pago generado persiste el `erp_id` de línea en `account.payment.pnt_erp_id`.\n- La respuesta exitosa mantiene `erp_id` a nivel raíz con valor `false`; el `erp_id` de cabecera enviado por la API se conserva dentro de `data.values`.\n- La factura se considera correcta solo si termina con residual 0.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_ERP_ID`: ERP id de línea duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuración Personalizada del Servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o dirección IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Número de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "InvoicePaymentLineSchema": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "amount",
+          "payment_date"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador ERP único de la línea de pago (>0)."
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "description": "Importe del fraccionamiento. Debe ser >0 y respetar los decimales de la moneda de la compañía."
+          },
+          "payment_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha de pago y también fecha de vencimiento del pago generado (YYYY-MM-DD)."
+          }
+        }
+      },
+      "InvoicePaymentCreateRequest": {
+        "type": "object",
+        "required": [
+          "erp_id",
+          "invoice_id",
+          "payment_method_id",
+          "amount_total",
+          "lines"
+        ],
+        "properties": {
+          "erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador ERP de cabecera (>0). Debe coincidir exactamente con `account.move.pnt_erp_id` de la factura identificada por `invoice_id` y se devuelve dentro de `data.values`."
+          },
+          "invoice_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la factura de cliente en Odoo (>0)."
+          },
+          "payment_method_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID interno de Odoo de la línea de método de pago entrante (`account.payment.method.line`) (>0). Debe corresponder a una línea entrante existente en la compañía objetivo."
+          },
+          "amount_total": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "description": "Importe total de la factura. Debe coincidir con el total de la factura y con la suma de las líneas."
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/InvoicePaymentLineSchema"
+            },
+            "description": "Lista de fraccionamientos a registrar. Se crea un pago por cada línea."
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/invoices/payments": {
+      "post": {
+        "summary": "Crear pagos fraccionados de factura",
+        "description": "Crea pagos fraccionados para una factura de cliente ya contabilizada.\n\nValidaciones:\n- La factura debe existir, ser `out_invoice`, estar contabilizada y en estado `not_paid`.\n- `erp_id` debe coincidir exactamente con `account.move.pnt_erp_id` de la factura indicada por `invoice_id`; si la factura tiene `pnt_erp_id` igual a `0` o `false`, la petición se rechaza.\n- `payment_method_id` debe corresponder al ID interno de Odoo de una `account.payment.method.line` entrante en la compañía; una línea `outbound` o de otra compañía también se rechaza.\n- La suma de las líneas debe coincidir con `amount_total` y con el total de la factura.\n- Los `pnt_erp_id` de línea deben ser únicos en el payload y no existir previamente en otros pagos.\n- El resultado final exige residual 0 en la factura.\n",
+        "operationId": "create_invoice_payments",
+        "tags": [
+          "Invoice Payments"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoicePaymentCreateRequest"
+              },
+              "example": {
+                "erp_id": 88001,
+                "invoice_id": 321,
+                "payment_method_id": 8,
+                "amount_total": 100.0,
+                "lines": [
+                  {
+                    "pnt_erp_id": 99001,
+                    "amount": 40.0,
+                    "payment_date": "2026-04-08"
+                  },
+                  {
+                    "pnt_erp_id": 99002,
+                    "amount": 60.0,
+                    "payment_date": "2026-04-08"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pagos fraccionados creados correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 321,
+                    "erp_id": false,
+                    "values": {
+                      "erp_id": 88001,
+                      "invoice_id": 321,
+                      "payment_method_id": 8,
+                      "amount_total": 100.0,
+                      "lines": [
+                        {
+                          "pnt_erp_id": 99001,
+                          "amount": 40.0,
+                          "payment_date": "2026-04-08"
+                        },
+                        {
+                          "pnt_erp_id": 99002,
+                          "amount": 60.0,
+                          "payment_date": "2026-04-08"
+                        }
+                      ]
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "odoo_id": 4501,
+                        "erp_id": 99001,
+                        "amount": 40.0,
+                        "payment_date": "2026-04-08",
+                        "due_date": "2026-04-08",
+                        "state": "draft"
+                      },
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "odoo_id": 4502,
+                        "erp_id": 99002,
+                        "amount": 60.0,
+                        "payment_date": "2026-04-08",
+                        "due_date": "2026-04-08",
+                        "state": "draft"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "missing_header_erp_id": {
+                    "summary": "Falta erp_id de cabecera",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "erp_id"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_move_type": {
+                    "summary": "Tipo de factura inválido",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "body"
+                            ],
+                            "msg": "invoice must be of type 'out_invoice'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_payment_state": {
+                    "summary": "Estado de pago de factura inválido",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "body"
+                            ],
+                            "msg": "invoice payment_state must be 'not_paid'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_payment_method_id": {
+                    "summary": "Línea de método de pago inválida",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "body"
+                            ],
+                            "msg": "payment_method_id does not match any inbound payment method line",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key inválida, ausente o expirada",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - ERP id de línea duplicado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_ERP_ID",
+                  "message": "Duplicate ERP ID already exists"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor - ocurrió un error inesperado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

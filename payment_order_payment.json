@@ -1,0 +1,312 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Gestión de Remesas desde Pagos",
+    "description": "API para crear remesas (`account.batch.payment`) a partir de pagos existentes (`account.payment`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento\nEste endpoint no crea pagos nuevos. Recibe una lista plana de IDs de `account.payment` ya registrados, valida que puedan agruparse y crea una remesa entrante (`batch_type=inbound`).\n\n## Validaciones Destacadas\n- `pnt_erp_id` es obligatorio, positivo y no debe existir previamente en otra remesa.\n- `date` y `sdd_required_collection_date` son obligatorios.\n- `destination_journal_id` debe existir, pertenecer a la compañía de la API key y ser un diario de tipo `bank`.\n- `payment_method_line_id` debe referenciar una línea de método de pago (`account.payment.method.line`) entrante y de la compañía.\n- Todos los pagos de `payment_ids` deben existir, pertenecer a la compañía de la API key y no tener `batch_payment_id`.\n- Todos los pagos deben ser `inbound`, usar la misma línea de método de pago indicada y el mismo diario asociado a esa línea.\n- `amount` debe coincidir con la suma de `amount_company_currency_signed` de los pagos, respetando la precisión de la moneda de la compañía.\n- El nombre almacenado en la remesa se guarda con prefijo `FRAC. `.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_ERP_ID`: ERP id de remesa duplicado (estado 409)\n- `DUPLICATE_KEY_VALUE`: Otra clave única duplicada (estado 409)\n- `INVALID_FOREIGN_KEY`: Referencia a clave externa inválida (estado 400)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuración Personalizada del Servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o dirección IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Número de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "PaymentOrderPaymentCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "date",
+          "sdd_required_collection_date",
+          "destination_journal_id",
+          "payment_method_line_id",
+          "name",
+          "amount",
+          "payment_ids"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP para la remesa (>0)."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha de la remesa (YYYY-MM-DD)."
+          },
+          "sdd_required_collection_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha requerida de cobro de la remesa (YYYY-MM-DD)."
+          },
+          "destination_journal_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del diario bancario destino (`account.journal`) en Odoo. Debe ser de tipo `bank`."
+          },
+          "payment_method_line_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la línea de método de pago (`account.payment.method.line`) en Odoo. Debe ser entrante (`inbound`)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Referencia enviada por el ERP. Odoo almacena la referencia final con prefijo `FRAC. `."
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "description": "Importe total de la remesa en moneda de compañía. Debe coincidir con la suma de `amount_company_currency_signed` de los pagos."
+          },
+          "payment_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Lista plana de IDs de `account.payment` existentes que se agruparán en la remesa."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/payment_orders/payments": {
+      "post": {
+        "summary": "Crear remesa desde pagos existentes",
+        "description": "Crea una remesa entrante (`account.batch.payment`) a partir de pagos (`account.payment`) ya existentes.\n\nValidaciones específicas:\n1. **Remesa única**: `pnt_erp_id` no debe existir previamente en otra remesa.\n2. **Diario destino**: `destination_journal_id` debe existir, pertenecer a la compañía y ser de tipo `bank`.\n3. **Línea de método de pago**: `payment_method_line_id` debe ser una línea de método de pago entrante (`account.payment.method.line`).\n4. **Pagos existentes**: todos los IDs de `payment_ids` deben existir.\n5. **Pagos sin lote**: ningún pago puede tener `batch_payment_id` asignado.\n6. **Coherencia de pagos**: todos los pagos deben pertenecer a la compañía, ser `inbound`, usar la línea de método de pago indicada y el mismo diario de dicha línea.\n7. **Total**: `amount` debe coincidir con la suma de los pagos en moneda de compañía.\n8. **Referencia**: el batch se crea con `name` igual a `FRAC. <name>`.\n",
+        "operationId": "create_payment_order_payment",
+        "tags": [
+          "Remesas desde Pagos"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentOrderPaymentCreateRequest"
+              },
+              "example": {
+                "pnt_erp_id": 92001,
+                "date": "2026-04-08",
+                "sdd_required_collection_date": "2026-04-13",
+                "destination_journal_id": 7,
+                "payment_method_line_id": 12,
+                "name": "REM-2026-001",
+                "amount": 3045.0,
+                "payment_ids": [
+                  101,
+                  102,
+                  103
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Remesa creada correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 501,
+                    "erp_id": 92001,
+                    "values": {
+                      "pnt_erp_id": 92001,
+                      "date": "2026-04-08",
+                      "sdd_required_collection_date": "2026-04-13",
+                      "destination_journal_id": 7,
+                      "payment_method_line_id": 12,
+                      "name": "REM-2026-001",
+                      "amount": 3045.0,
+                      "payment_ids": [
+                        101,
+                        102,
+                        103
+                      ]
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_destination_journal": {
+                    "summary": "Diario destino no bancario",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "destination_journal_id"
+                            ],
+                            "msg": "Destination journal type must be 'bank', but it is 'sale'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_payment_method": {
+                    "summary": "Método de pago no entrante",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "payment_method_line_id"
+                            ],
+                            "msg": "Payment method must be 'inbound', but it is 'outbound'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "already_batched_payment": {
+                    "summary": "Pago ya asignado a otra remesa",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "payment_ids"
+                            ],
+                            "msg": "Payments already belong to another batch: [101]",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "amount_mismatch": {
+                    "summary": "Importe total no coincidente",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "amount"
+                            ],
+                            "msg": "Amount 3044.0 does not match payment total 3045.0",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key inválida o ausente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - ERP id de remesa duplicado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_ERP_ID",
+                  "message": "The provided ERP ID already exists for another record"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor - ocurrió un error inesperado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

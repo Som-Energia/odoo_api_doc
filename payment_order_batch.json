@@ -1,0 +1,426 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Gestión de Remesas Agrupadas",
+    "description": "API para crear remesas agrupadas (`account.batch.payment`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento de la Remesa Agrupada\nCada línea de la petición agrupa varias facturas mediante `invoice_ids` y genera un único `account.payment` agrupado por línea. Posteriormente, todos los pagos creados se agrupan en una remesa `account.batch.payment`.\n\n## Validaciones Destacadas\n- `batch_type` es obligatorio y debe ser `inbound` o `outbound`.\n- Para `inbound`, `sdd_required_collection_date` es obligatorio.\n- Para `outbound`, `sdd_required_collection_date` no se utiliza.\n- `destination_journal_id` debe existir y ser un diario de tipo `bank`.\n- `payment_method_id` es obligatorio y debe referenciar una línea de método de pago (`account.payment.method.line`) cuyo `payment_type` coincida con `batch_type`.\n- Cada línea debe contener al menos una factura en `invoice_ids`.\n- Todas las facturas de una misma línea deben pertenecer al mismo partner.\n- Para `inbound`, el importe de cada línea y el total de cabecera deben ser positivos.\n- Para `outbound`, el importe de cada línea y el total de cabecera deben ser negativos.\n- La suma firmada de las facturas de cada grupo debe coincidir exactamente con el importe de la línea.\n- La suma de las líneas debe coincidir exactamente con `amount`.\n- El `batch_type` final de `account.batch.payment` debe coincidir con el solicitado en la API.\n\n## Particularidades de la Respuesta\n- La respuesta devuelve `odoo_id` y `erp_id` a `false`.\n- Los IDs reales de los `account.payment` creados se devuelven en `metadata[].created_payment_ids`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuración Personalizada del Servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o dirección IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Número de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "PaymentOrderBatchLineSchema": {
+        "type": "object",
+        "required": [
+          "invoice_ids",
+          "amount"
+        ],
+        "properties": {
+          "invoice_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Lista de IDs de facturas de Odoo que se agrupan en un único pago. Todas las facturas de la línea deben pertenecer al mismo partner."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Importe firmado del grupo. Debe ser positivo en `inbound` y negativo en `outbound`, y coincidir exactamente con la suma firmada de las facturas del grupo."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PaymentOrderBatchCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "batch_type",
+          "date",
+          "destination_journal_id",
+          "name",
+          "amount",
+          "payment_method_id",
+          "lines"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP (>0)."
+          },
+          "batch_type": {
+            "type": "string",
+            "enum": [
+              "inbound",
+              "outbound"
+            ],
+            "description": "Tipo de remesa: `inbound` para cobros agrupados o `outbound` para pagos agrupados."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha de la remesa (YYYY-MM-DD)."
+          },
+          "sdd_required_collection_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha solicitada de cobro. Obligatoria solo para `inbound`."
+          },
+          "destination_journal_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del diario bancario destino en Odoo (>0)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Referencia de la remesa agrupada."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Importe total firmado de la remesa. Debe coincidir con la suma de las líneas y respetar el signo exigido por `batch_type`."
+          },
+          "payment_method_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la línea de método de pago (`account.payment.method.line`) en Odoo. Su `payment_type` debe coincidir con `batch_type`."
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PaymentOrderBatchLineSchema"
+            },
+            "description": "Lista de grupos de facturas a incluir en la remesa. Cada línea genera un pago agrupado."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/payment_order_batches": {
+      "post": {
+        "summary": "Crear Remesa Agrupada",
+        "description": "Crea una remesa agrupada (`account.batch.payment`) y los pagos agrupados (`account.payment`) asociados.\n\nValidaciones específicas:\n1. **Diario Destino**: `destination_journal_id` debe existir y ser de tipo `bank`.\n2. **Método de Pago**: `payment_method_id` es obligatorio y debe coincidir con `batch_type`.\n3. **Agrupación por Línea**: `invoice_ids` agrupa varias facturas en un único pago.\n4. **Mismo Partner**: todas las facturas de una misma línea deben pertenecer al mismo partner.\n5. **Signo de Importes**: `inbound` exige importes positivos; `outbound`, importes negativos.\n6. **Totales**: la suma firmada de cada grupo debe coincidir con el importe de la línea y la suma de líneas debe coincidir con `amount`.\n7. **Tipo Final del Batch**: la remesa final debe mantener el mismo `batch_type` solicitado en la API.\n",
+        "operationId": "create_payment_order_batch",
+        "tags": [
+          "Remesas Agrupadas"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentOrderBatchCreateRequest"
+              },
+              "examples": {
+                "inbound": {
+                  "summary": "Remesa agrupada inbound",
+                  "value": {
+                    "pnt_erp_id": 9101,
+                    "batch_type": "inbound",
+                    "date": "2026-02-15",
+                    "sdd_required_collection_date": "2026-02-20",
+                    "destination_journal_id": 7,
+                    "name": "BATCH-FEB-IN-001",
+                    "amount": 1500.5,
+                    "payment_method_id": 12,
+                    "lines": [
+                      {
+                        "invoice_ids": [
+                          101,
+                          102
+                        ],
+                        "amount": 1000.25
+                      },
+                      {
+                        "invoice_ids": [
+                          103
+                        ],
+                        "amount": 500.25
+                      }
+                    ]
+                  }
+                },
+                "outbound": {
+                  "summary": "Remesa agrupada outbound",
+                  "value": {
+                    "pnt_erp_id": 9102,
+                    "batch_type": "outbound",
+                    "date": "2026-02-15",
+                    "destination_journal_id": 7,
+                    "name": "BATCH-FEB-OUT-001",
+                    "amount": -850.0,
+                    "payment_method_id": 15,
+                    "lines": [
+                      {
+                        "invoice_ids": [
+                          201,
+                          202
+                        ],
+                        "amount": -500.0
+                      },
+                      {
+                        "invoice_ids": [
+                          203
+                        ],
+                        "amount": -350.0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Remesa agrupada creada correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": false,
+                    "erp_id": false,
+                    "values": {
+                      "pnt_erp_id": 9101,
+                      "batch_type": "inbound",
+                      "date": "2026-02-15",
+                      "sdd_required_collection_date": "2026-02-20",
+                      "destination_journal_id": 7,
+                      "name": "BATCH-FEB-IN-001",
+                      "amount": 1500.5,
+                      "payment_method_id": 12,
+                      "lines": [
+                        {
+                          "invoice_ids": [
+                            101,
+                            102
+                          ],
+                          "amount": 1000.25
+                        },
+                        {
+                          "invoice_ids": [
+                            103
+                          ],
+                          "amount": 500.25
+                        }
+                      ]
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      },
+                      {
+                        "created_payment_ids": [
+                          450,
+                          451
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "missing_sdd_date": {
+                    "summary": "Falta la fecha de cobro en inbound",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [],
+                            "msg": "sdd_required_collection_date is required when batch_type is 'inbound'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_payment_method": {
+                    "summary": "Método de pago incompatible con el tipo de remesa",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "payment_method_id"
+                            ],
+                            "msg": "Payment method must be 'outbound', but it is 'inbound'",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "line_amount_sign": {
+                    "summary": "Importe de línea con signo incorrecto",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "line amount must be negative when batch_type is 'outbound': 500.0",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "different_partners": {
+                    "summary": "Facturas de distintos partners en la misma línea",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines"
+                            ],
+                            "msg": "Invoices in the same line must belong to the same partner. Invoices: [101, 102], partners: [45, 78]",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "batch_total_mismatch": {
+                    "summary": "El total de cabecera no coincide con la suma de líneas",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "amount"
+                            ],
+                            "msg": "Sum of lines (1500.5) does not match batch amount (1500.0)",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Created batch type 'inbound' does not match requested batch type 'outbound'"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key inválida, ausente o expirada",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - ERP ID duplicado o restricción única vulnerada",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_KEY_VALUE",
+                  "message": "Record with provided key already exists: duplicate key value violates unique constraint"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,272 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Devoluciones de Pagos Fraccionados",
+    "description": "API para devolver pagos fraccionados existentes (`account.payment`) y revertir el asiento del pago ancla y de los pagos posteriores de su misma factura.\n\n## Autenticacion\nTodos los endpoints requieren autenticacion mediante API key a traves de la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success`, `message` y, cuando aplica, `data` o `error_code`.\n\n## Comportamiento\n- La compania objetivo se resuelve desde la API key.\n- El payload debe incluir `pnt_erp_id`, `payment_id` y `amount`.\n- El flujo no crea `pnt.payment.order.refund`.\n- El flujo no modifica `account.batch.payment`, `batch_payment_id` ni `is_sent`.\n\n## Validaciones destacadas\n- El pago debe existir y pertenecer a la compania de la API key.\n- `pnt_erp_id` del payload debe coincidir con `account.payment.pnt_erp_id`.\n- El pago comunicado debe ser `inbound`, estar en `paid`, tener asiento contable publicado y el importe debe coincidir con `amount` usando precision de moneda.\n- El pago debe estar vinculado a exactamente una factura de cliente.\n- Se selecciona para reversion el pago comunicado y los pagos reconciliados `inbound` de la factura con clave funcional mayor o igual, ordenados por `(pnt_due_date or date, date, id)`.\n- Los pagos posteriores ya aplicados a la factura se revierten aunque su estado sea `in_process`, siempre que su asiento este publicado.\n- Los pagos anteriores a la clave funcional del pago comunicado no se revierten.\n- Si alguno de los pagos seleccionados ya tiene reversion previa, la operacion se rechaza sin duplicar reversos.\n\n## Codigos de error\n- `INVALID_API_KEY`: autenticacion fallida\n- `INVALID_PARAMETERS`: error de validacion (HTTP 400)\n- `INTERNAL_SERVER_ERROR`: error inesperado (HTTP 500)\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuracion personalizada del servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o direccion IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Numero de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticacion"
+      }
+    },
+    "schemas": {
+      "PaymentOrderRefundFractionedCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "payment_id",
+          "amount"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ERP ID del pago comunicado (>0)."
+          },
+          "payment_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID interno de Odoo del pago (`account.payment`)."
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "description": "Importe del pago devuelto. Debe coincidir con el importe del pago usando la precision monetaria de la compania."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/payment_order_refunds/fractioned": {
+      "post": {
+        "summary": "Devolver pago fraccionado y posteriores",
+        "description": "Procesa la devolucion de un pago fraccionado existente y revierte su asiento, junto con los pagos reconciliados posteriores de la misma factura segun la clave funcional `(pnt_due_date or date, date, id)`, mediante el wizard estandar `account.move.reversal.refund_moves()`. Los pagos posteriores ya aplicados a la factura se incluyen aunque su estado sea `in_process` si su asiento esta publicado.\n",
+        "operationId": "create_payment_order_refund_fractioned",
+        "tags": [
+          "Devoluciones de Pagos Fraccionados"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentOrderRefundFractionedCreateRequest"
+              },
+              "example": {
+                "pnt_erp_id": 420011,
+                "payment_id": 135,
+                "amount": 600.0
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Devolucion procesada correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 135,
+                    "erp_id": 420011,
+                    "values": {
+                      "pnt_erp_id": 420011,
+                      "payment_id": 135,
+                      "amount": 600.0
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal",
+                        "invoice_id": 987,
+                        "invoice_name": "FAC/2026/0042",
+                        "invoice_amount_residual": 2525.0,
+                        "reverted_payment_ids": [
+                          135,
+                          136,
+                          137
+                        ],
+                        "reverted_payment_erp_ids": [
+                          420011,
+                          420012,
+                          420013
+                        ],
+                        "reverted_move_ids": [
+                          3001,
+                          3002,
+                          3003
+                        ],
+                        "reversal_move_ids": [
+                          3101,
+                          3102,
+                          3103
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - errores de validacion funcional o de payload",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_payload": {
+                    "summary": "Faltan campos obligatorios",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "pnt_erp_id"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "amount_precision": {
+                    "summary": "Importe con precision invalida",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "amount"
+                            ],
+                            "msg": "Value error, amount has 3 decimals; allowed 2",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "payment_other_company": {
+                    "summary": "Pago de otra compania",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Payment 22 does not belong to company 8."
+                    }
+                  },
+                  "amount_mismatch": {
+                    "summary": "Importe no coincide con pago",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Payment amount 100.0 does not match request amount 99.99."
+                    }
+                  },
+                  "invoice_not_unique": {
+                    "summary": "Pago sin factura unica",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Payment PBNK1/2026/00001 must be linked to exactly one customer invoice."
+                    }
+                  },
+                  "non_posted_move": {
+                    "summary": "Asiento no publicado",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Payment Draft Payment must have a posted journal entry."
+                    }
+                  },
+                  "already_reversed": {
+                    "summary": "Pago ya revertido",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Payment PBNK1/2026/00001 already has a reversed journal entry."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key invalida o ausente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
