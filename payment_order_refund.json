@@ -1,0 +1,314 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Devoluciones de Remesas",
+    "description": "API para crear devoluciones de remesas (`pnt.payment.order.refund`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Validaciones Destacadas\n- `pnt_erp_id` es obligatorio y positivo.\n- `account_id` debe referenciar una cuenta contable existente.\n- `journal_id` debe referenciar un diario existente.\n- Cada línea requiere al menos un `invoice_id` positivo y un `amount` >= 0.\n- La precisión decimal de `amount` se valida según la moneda de la compañía.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n\n\n## Contract Note\nValidation and functional messages are returned in English.",
+    "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
+    "contact": {
+      "name": "Punt Sistemes"
+    }
+  },
+  "servers": [
+    {
+      "url": "{protocol}://{host}:{port}{basePath}",
+      "description": "Configuración Personalizada del Servidor",
+      "variables": {
+        "protocol": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "default": "http",
+          "description": "Protocolo (http o https)"
+        },
+        "host": {
+          "default": "localhost",
+          "description": "Nombre de host o dirección IP del servidor"
+        },
+        "port": {
+          "default": "8069",
+          "description": "Número de puerto del servidor"
+        },
+        "basePath": {
+          "default": "/api/v1",
+          "description": "Ruta base de la API"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key para autenticación"
+      }
+    },
+    "schemas": {
+      "PaymentOrderRefundLineSchema": {
+        "type": "object",
+        "required": [
+          "invoice_ids",
+          "amount"
+        ],
+        "properties": {
+          "invoice_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Lista de IDs de facturas asociadas a la línea de devolución. Todos deben ser positivos."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Importe de la línea de devolución. Se valida la precisión decimal según la moneda de la compañía."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PaymentOrderRefundCreateRequest": {
+        "type": "object",
+        "required": [
+          "pnt_erp_id",
+          "name",
+          "account_id",
+          "date",
+          "amount",
+          "journal_id",
+          "lines"
+        ],
+        "properties": {
+          "pnt_erp_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Identificador único del sistema ERP (>0)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Referencia de la devolución."
+          },
+          "account_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la cuenta contable en Odoo (>0)."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Fecha de la devolución (YYYY-MM-DD)."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Importe total de la devolución. Se valida la precisión decimal según la moneda de la compañía."
+          },
+          "journal_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID del diario contable en Odoo (>0)."
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PaymentOrderRefundLineSchema"
+            },
+            "description": "Lista de líneas de devolución."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/payment_order_refunds": {
+      "post": {
+        "summary": "Crear Devolución de Remesa",
+        "description": "Crea una devolución de remesa (`pnt.payment.order.refund`) y registra los movimientos contables asociados.\n\nValidaciones específicas:\n1. **ERP ID**: `pnt_erp_id` debe ser positivo.\n2. **Cuenta**: `account_id` debe referenciar una cuenta existente.\n3. **Diario**: `journal_id` debe referenciar un diario existente.\n4. **Líneas**: cada línea requiere al menos una factura y un importe >= 0.\n5. **Precisión**: los importes se validan según la precisión de la moneda de la compañía.\n",
+        "operationId": "create_payment_order_refund",
+        "tags": [
+          "Devoluciones de Remesas"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentOrderRefundCreateRequest"
+              },
+              "example": {
+                "pnt_erp_id": 50001,
+                "name": "DEV-REM-001",
+                "account_id": 42,
+                "date": "2026-03-15",
+                "amount": 500,
+                "journal_id": 7,
+                "lines": [
+                  {
+                    "invoice_ids": [
+                      101,
+                      102
+                    ],
+                    "amount": 300
+                  },
+                  {
+                    "invoice_ids": [
+                      103
+                    ],
+                    "amount": 200
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Devolución creada correctamente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Record created successfully",
+                  "data": {
+                    "odoo_id": 801,
+                    "erp_id": 50001,
+                    "values": {
+                      "pnt_erp_id": 50001,
+                      "name": "DEV-REM-001",
+                      "account_id": 42,
+                      "date": "2026-03-15",
+                      "amount": 500,
+                      "journal_id": 7,
+                      "lines": [
+                        {
+                          "invoice_ids": [
+                            101,
+                            102
+                          ],
+                          "amount": 300
+                        },
+                        {
+                          "invoice_ids": [
+                            103
+                          ],
+                          "amount": 200
+                        }
+                      ]
+                    },
+                    "metadata": [
+                      {
+                        "company_id": 1,
+                        "company_name": "Compañía Principal"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Errores de validación",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "pydantic_validation": {
+                    "summary": "Campos obligatorios faltantes",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "name"
+                            ],
+                            "msg": "Field required",
+                            "type": "missing"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "negative_invoice_id": {
+                    "summary": "ID de factura no positivo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "loc": [
+                              "lines",
+                              0,
+                              "invoice_ids"
+                            ],
+                            "msg": "Value error, invoice_ids must contain only positive integers",
+                            "type": "value_error"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - API key inválida o ausente",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto - Clave duplicada",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "DUPLICATE_KEY_VALUE",
+                  "message": "Record with provided key already exists"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

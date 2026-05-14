@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Pagos Fraccionados de Facturas",
-    "description": "API para registrar pagos fraccionados de facturas de cliente en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Notas funcionales\n- El endpoint solo admite facturas de cliente (`out_invoice`).\n- La factura debe estar contabilizada y en estado de pago `not_paid` antes de crear los pagos.\n- El `erp_id` de cabecera debe coincidir exactamente con el `pnt_erp_id` almacenado en la factura identificada por `invoice_id`.\n- El método de pago recibido en cabecera (`payment_method_id`) debe corresponder al ID interno de Odoo de una `account.payment.method.line` entrante en la compañía; si la línea existe pero es `outbound` o pertenece a otra compañía, la petición también se rechaza.\n- Se crea un pago por cada línea del payload mediante `account.payment.register`.\n- Cada pago generado persiste el `erp_id` de línea en `account.payment.pnt_erp_id`.\n- La respuesta exitosa mantiene `erp_id` a nivel raíz con valor `false`; el `erp_id` de cabecera enviado por la API se conserva dentro de `data.values`.\n- La factura se considera correcta solo si termina con residual 0.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_ERP_ID`: ERP id de línea duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para registrar pagos fraccionados de facturas de cliente en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Notas funcionales\n- El endpoint solo admite facturas de cliente (`out_invoice`).\n- La factura debe estar contabilizada y en estado de pago `not_paid` antes de crear los pagos.\n- El `erp_id` de cabecera debe coincidir exactamente con el `pnt_erp_id` almacenado en la factura identificada por `invoice_id`.\n- El método de pago recibido en cabecera (`payment_method_line_id`) debe corresponder al ID interno de Odoo de una `account.payment.method.line` entrante en la compañía; si la línea existe pero es `outbound` o pertenece a otra compañía, la petición también se rechaza.\n- Se crea un pago por cada línea del payload mediante `account.payment.register`.\n- Cada pago generado persiste el `erp_id` de línea en `account.payment.pnt_erp_id`.\n- La respuesta exitosa mantiene `erp_id` a nivel raíz con valor `false`; el `erp_id` de cabecera enviado por la API se conserva dentro de `data.values`.\n- La factura se considera correcta solo si termina con residual 0.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_ERP_ID`: ERP id de línea duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -82,7 +86,7 @@
         "required": [
           "erp_id",
           "invoice_id",
-          "payment_method_id",
+          "payment_method_line_id",
           "amount_total",
           "lines"
         ],
@@ -97,11 +101,6 @@
             "minimum": 1,
             "description": "ID de la factura de cliente en Odoo (>0)."
           },
-          "payment_method_id": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "ID interno de Odoo de la línea de método de pago entrante (`account.payment.method.line`) (>0). Debe corresponder a una línea entrante existente en la compañía objetivo."
-          },
           "amount_total": {
             "type": "number",
             "exclusiveMinimum": true,
@@ -115,6 +114,11 @@
               "$ref": "#/components/schemas/InvoicePaymentLineSchema"
             },
             "description": "Lista de fraccionamientos a registrar. Se crea un pago por cada línea."
+          },
+          "payment_method_line_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID interno de Odoo de la línea de método de pago entrante (`account.payment.method.line`) (>0). Debe corresponder a una línea entrante existente en la compañía objetivo."
           }
         }
       }
@@ -124,7 +128,7 @@
     "/invoices/payments": {
       "post": {
         "summary": "Crear pagos fraccionados de factura",
-        "description": "Crea pagos fraccionados para una factura de cliente ya contabilizada.\n\nValidaciones:\n- La factura debe existir, ser `out_invoice`, estar contabilizada y en estado `not_paid`.\n- `erp_id` debe coincidir exactamente con `account.move.pnt_erp_id` de la factura indicada por `invoice_id`; si la factura tiene `pnt_erp_id` igual a `0` o `false`, la petición se rechaza.\n- `payment_method_id` debe corresponder al ID interno de Odoo de una `account.payment.method.line` entrante en la compañía; una línea `outbound` o de otra compañía también se rechaza.\n- La suma de las líneas debe coincidir con `amount_total` y con el total de la factura.\n- Los `pnt_erp_id` de línea deben ser únicos en el payload y no existir previamente en otros pagos.\n- El resultado final exige residual 0 en la factura.\n",
+        "description": "Crea pagos fraccionados para una factura de cliente ya contabilizada.\n\nValidaciones:\n- La factura debe existir, ser `out_invoice`, estar contabilizada y en estado `not_paid`.\n- `erp_id` debe coincidir exactamente con `account.move.pnt_erp_id` de la factura indicada por `invoice_id`; si la factura tiene `pnt_erp_id` igual a `0` o `false`, la petición se rechaza.\n- `payment_method_line_id` debe corresponder al ID interno de Odoo de una `account.payment.method.line` entrante en la compañía; una línea `outbound` o de otra compañía también se rechaza.\n- La suma de las líneas debe coincidir con `amount_total` y con el total de la factura.\n- Los `pnt_erp_id` de línea deben ser únicos en el payload y no existir previamente en otros pagos.\n- El resultado final exige residual 0 en la factura.\n",
         "operationId": "create_invoice_payments",
         "tags": [
           "Invoice Payments"
@@ -139,20 +143,20 @@
               "example": {
                 "erp_id": 88001,
                 "invoice_id": 321,
-                "payment_method_id": 8,
-                "amount_total": 100.0,
+                "amount_total": 100,
                 "lines": [
                   {
                     "pnt_erp_id": 99001,
-                    "amount": 40.0,
+                    "amount": 40,
                     "payment_date": "2026-04-08"
                   },
                   {
                     "pnt_erp_id": 99002,
-                    "amount": 60.0,
+                    "amount": 60,
                     "payment_date": "2026-04-08"
                   }
-                ]
+                ],
+                "payment_method_line_id": 8
               }
             }
           }
@@ -171,20 +175,20 @@
                     "values": {
                       "erp_id": 88001,
                       "invoice_id": 321,
-                      "payment_method_id": 8,
-                      "amount_total": 100.0,
+                      "amount_total": 100,
                       "lines": [
                         {
                           "pnt_erp_id": 99001,
-                          "amount": 40.0,
+                          "amount": 40,
                           "payment_date": "2026-04-08"
                         },
                         {
                           "pnt_erp_id": 99002,
-                          "amount": 60.0,
+                          "amount": 60,
                           "payment_date": "2026-04-08"
                         }
-                      ]
+                      ],
+                      "payment_method_line_id": 8
                     },
                     "metadata": [
                       {
@@ -192,7 +196,7 @@
                         "company_name": "Compañía Principal",
                         "odoo_id": 4501,
                         "erp_id": 99001,
-                        "amount": 40.0,
+                        "amount": 40,
                         "payment_date": "2026-04-08",
                         "due_date": "2026-04-08",
                         "state": "draft"
@@ -202,7 +206,7 @@
                         "company_name": "Compañía Principal",
                         "odoo_id": 4502,
                         "erp_id": 99002,
-                        "amount": 60.0,
+                        "amount": 60,
                         "payment_date": "2026-04-08",
                         "due_date": "2026-04-08",
                         "state": "draft"
@@ -275,7 +279,7 @@
                       }
                     }
                   },
-                  "invalid_payment_method_id": {
+                  "invalid_payment_method_line_id": {
                     "summary": "Línea de método de pago inválida",
                     "value": {
                       "success": false,
@@ -287,7 +291,7 @@
                             "loc": [
                               "body"
                             ],
-                            "msg": "payment_method_id does not match any inbound payment method line",
+                            "msg": "payment_method_line_id does not match any inbound payment method line",
                             "type": "value_error"
                           }
                         ]

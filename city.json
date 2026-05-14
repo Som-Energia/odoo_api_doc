@@ -1,9 +1,13 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "API de Gestión de Ciudades",
-    "description": "API para obtener información de ciudades por código INE en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "title": "API de Gestión de Municipios",
+    "description": "API para consultar municipios por código INE en Odoo.\n\n## Autenticación\nTodos los endpoints requieren la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success` y `message`. Cuando aplica, también incluyen `data` o `error_code`.\n\n## Saneado del código INE\nEl endpoint valida `code_ine` con `CityGetSchema`, elimina los espacios al inicio y al final del valor recibido, elimina los caracteres `%` y `_` y realiza una búsqueda insensible a mayúsculas y minúsculas.\n\n## Códigos de error\n- `INVALID_API_KEY`: autenticación fallida\n- `INVALID_PARAMETERS`: error de validación\n- `RECORD_NOT_FOUND`: recurso no encontrado\n- `INTERNAL_SERVER_ERROR`: error inesperado\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -51,20 +55,149 @@
       }
     },
     "schemas": {
-      "City": {
+      "ValidationErrorItem": {
         "type": "object",
+        "description": "Elemento individual de error de validación.",
         "properties": {
-          "odoo_id": {
-            "type": "integer"
-          },
-          "erp_id": {
-            "type": "integer"
-          },
-          "name": {
+          "type": {
             "type": "string"
           },
-          "code_ine": {
+          "loc": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
             "type": "string"
+          },
+          "input": {}
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "description": "Envelope de error estándar de la API.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiErrorResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "validation_errors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ValidationErrorItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CityGetSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al consultar un municipio.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer",
+                "description": "Identificador interno de Odoo."
+              },
+              "erp_id": {
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ]
+                  }
+                ],
+                "description": "Identificador en el sistema ERP, o false si no está asignado."
+              },
+              "name": {
+                "type": "string",
+                "description": "Nombre del municipio."
+              },
+              "metadata": {
+                "type": "array",
+                "description": "Metadatos de la compañía asociada al registro.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "company_id": {
+                      "oneOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        }
+                      ],
+                      "description": "Identificador de la compañía, o false si no tiene compañía asignada."
+                    },
+                    "company_name": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        }
+                      ],
+                      "description": "Nombre de la compañía, o false si no tiene compañía asignada."
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -73,29 +206,34 @@
   "paths": {
     "/cities/{code_ine}": {
       "get": {
-        "summary": "Obtener Ciudad",
-        "description": "Recupera una ciudad específica por su código INE.\n\nEl endpoint busca una coincidencia (insensible a mayúsculas/minúsculas) del código INE saneado. Devuelve 404 si no existe ningún registro coincidente.\n",
+        "summary": "Obtener municipio",
+        "description": "Obtiene el municipio cuyo código INE, una vez validado con `CityGetSchema` y saneado, coincide con el valor indicado. El endpoint elimina los espacios al inicio y al final, elimina `%` y `_` y delega la búsqueda al modelo con comparación insensible a mayúsculas y minúsculas. Devuelve 404 cuando no encuentra ningún registro.\n",
         "operationId": "get_city",
         "tags": [
-          "Ciudades"
+          "Municipios"
         ],
         "parameters": [
           {
             "name": "code_ine",
             "in": "path",
             "required": true,
-            "description": "El código INE de la ciudad a buscar (será saneado)",
+            "description": "Código INE del municipio. Se eliminan los espacios al inicio y al final, así como los caracteres `%` y `_`, antes de buscar. La búsqueda es insensible a mayúsculas y minúsculas.",
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
               "example": "28001"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Ciudad encontrada correctamente",
+            "description": "Municipio encontrado correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CityGetSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record found successfully",
@@ -115,21 +253,52 @@
             }
           },
           "400": {
-            "description": "Solicitud incorrecta - Error de validación de Odoo",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o error de validación de Odoo",
             "content": {
               "application/json": {
-                "example": {
-                  "success": false,
-                  "error_code": "INVALID_PARAMETERS",
-                  "message": "Error description from Odoo"
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "examples": {
+                  "validation_error": {
+                    "summary": "Error de validación de parámetros",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "string_too_long",
+                            "loc": [
+                              "code_ine"
+                            ],
+                            "msg": "String should have at most 16 characters",
+                            "input": "28001000000000000"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Error description from Odoo"
+                    }
+                  }
                 }
               }
             }
           },
           "401": {
-            "description": "No autorizado - API key inválida, ausente o expirada",
+            "description": "No autorizado - API key inválida o ausente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -139,9 +308,12 @@
             }
           },
           "404": {
-            "description": "No encontrado - La ciudad con este código INE no existe",
+            "description": "No encontrado - El municipio con este código INE no existe",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "RECORD_NOT_FOUND",
@@ -151,13 +323,16 @@
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }

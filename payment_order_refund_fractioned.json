@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Devoluciones de Pagos Fraccionados",
-    "description": "API para devolver pagos fraccionados existentes (`account.payment`) y revertir el asiento del pago ancla y de los pagos posteriores de su misma factura.\n\n## Autenticacion\nTodos los endpoints requieren autenticacion mediante API key a traves de la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success`, `message` y, cuando aplica, `data` o `error_code`.\n\n## Comportamiento\n- La compania objetivo se resuelve desde la API key.\n- El payload debe incluir `pnt_erp_id`, `payment_id` y `amount`.\n- El flujo no crea `pnt.payment.order.refund`.\n- El flujo no modifica `account.batch.payment`, `batch_payment_id` ni `is_sent`.\n\n## Validaciones destacadas\n- El pago debe existir y pertenecer a la compania de la API key.\n- `pnt_erp_id` del payload debe coincidir con `account.payment.pnt_erp_id`.\n- El pago comunicado debe ser `inbound`, estar en `paid`, tener asiento contable publicado y el importe debe coincidir con `amount` usando precision de moneda.\n- El pago debe estar vinculado a exactamente una factura de cliente.\n- Se selecciona para reversion el pago comunicado y los pagos reconciliados `inbound` de la factura con clave funcional mayor o igual, ordenados por `(pnt_due_date or date, date, id)`.\n- Los pagos posteriores ya aplicados a la factura se revierten aunque su estado sea `in_process`, siempre que su asiento este publicado.\n- Los pagos anteriores a la clave funcional del pago comunicado no se revierten.\n- Si alguno de los pagos seleccionados ya tiene reversion previa, la operacion se rechaza sin duplicar reversos.\n\n## Codigos de error\n- `INVALID_API_KEY`: autenticacion fallida\n- `INVALID_PARAMETERS`: error de validacion (HTTP 400)\n- `INTERNAL_SERVER_ERROR`: error inesperado (HTTP 500)\n",
+    "description": "API para devolver pagos fraccionados existentes (`account.payment`) y revertir el asiento del pago ancla y de los pagos posteriores de su misma factura.\n\n## Autenticacion\nTodos los endpoints requieren autenticacion mediante API key a traves de la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success`, `message` y, cuando aplica, `data` o `error_code`.\n\n## Comportamiento\n- La compania objetivo se resuelve desde la API key.\n- El payload debe incluir `pnt_erp_id`, `payment_id` y `amount`.\n- El flujo no crea `pnt.payment.order.refund`.\n- El flujo no modifica `account.batch.payment`, `batch_payment_id` ni `is_sent`.\n\n## Validaciones destacadas\n- El pago debe existir y pertenecer a la compania de la API key.\n- `pnt_erp_id` del payload debe coincidir con `account.payment.pnt_erp_id`.\n- El pago comunicado debe ser `inbound`, estar en `paid`, tener asiento contable publicado y el importe debe coincidir con `amount` usando precision de moneda.\n- El pago debe estar vinculado a exactamente una factura de cliente.\n- Se selecciona para reversion el pago comunicado y los pagos reconciliados `inbound` de la factura con clave funcional mayor o igual, ordenados por `(pnt_due_date or date, date, id)`.\n- Los pagos posteriores ya aplicados a la factura se revierten aunque su estado sea `in_process`, siempre que su asiento este publicado.\n- Los pagos anteriores a la clave funcional del pago comunicado no se revierten.\n- Si alguno de los pagos seleccionados ya tiene reversion previa, la operacion se rechaza sin duplicar reversos.\n\n## Codigos de error\n- `INVALID_API_KEY`: autenticacion fallida\n- `INVALID_PARAMETERS`: error de validacion (HTTP 400)\n- `INTERNAL_SERVER_ERROR`: error inesperado (HTTP 500)\n\n\n## Contract Note\nValidation and functional messages are returned in English.",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -99,7 +103,7 @@
               "example": {
                 "pnt_erp_id": 420011,
                 "payment_id": 135,
-                "amount": 600.0
+                "amount": 600
               }
             }
           }
@@ -118,7 +122,7 @@
                     "values": {
                       "pnt_erp_id": 420011,
                       "payment_id": 135,
-                      "amount": 600.0
+                      "amount": 600
                     },
                     "metadata": [
                       {
@@ -126,7 +130,7 @@
                         "company_name": "Compañía Principal",
                         "invoice_id": 987,
                         "invoice_name": "FAC/2026/0042",
-                        "invoice_amount_residual": 2525.0,
+                        "invoice_amount_residual": 2525,
                         "reverted_payment_ids": [
                           135,
                           136,

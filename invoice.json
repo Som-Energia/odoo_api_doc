@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Facturas",
-    "description": "API para crear facturas (cliente y proveedor) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Factura\n- `out_invoice`: Factura de cliente\n- `out_refund`: Factura rectificativa de cliente\n- `in_invoice`: Factura de proveedor\n- `in_refund`: Factura rectificativa de proveedor\n\n## Validaciones Destacadas\n- El diario debe ser de tipo `sale` o `purchase`.\n- El diario debe tener habilitada la sincronización ERP (`pnt_synchronization_erp`).\n- Para facturas de proveedor (`in_invoice`, `in_refund`), el campo `ref` es obligatorio.\n- En facturas de cliente (`out_invoice`, `out_refund`), `date` e `invoice_date` deben ser iguales.\n- El método de pago (`preferred_payment_method_line_id`) debe ser coherente con el diario: `inbound` para ventas, `outbound` para compras.\n- La precisión decimal de `price_unit`, `quantity` y `discount` se valida según la configuración de Odoo.\n- Si se proporcionan líneas de factura, no pueden estar vacías.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409, por ejemplo, número de factura o ERP ID duplicado)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear facturas de cliente y proveedor en Odoo.\n\n## Autenticación\nTodos los endpoints requieren la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success` y `message`. Cuando aplica, también incluyen `data` o `error_code`.\n\n## Tipos de factura\n- `out_invoice`: factura de cliente\n- `out_refund`: rectificativa de cliente\n- `in_invoice`: factura de proveedor\n- `in_refund`: rectificativa de proveedor\n\n## Validaciones destacadas\n- Para proveedor (`in_invoice`, `in_refund`), `ref` es obligatorio.\n- Para cliente (`out_invoice`, `out_refund`), `date` e `invoice_date` deben coincidir.\n- Los strings `number`, `ref` y `invoice_line_ids[].name` se recortan antes de validar y persistir.\n- El diario debe existir, ser `sale` o `purchase`, estar habilitado para sincronización ERP y pertenecer a la compañía asociada a la API key.\n- El método de pago preferido debe ser `inbound` en ventas y `outbound` en compras, y pertenecer a la compañía asociada a la API key.\n- `invoice_payment_term_id` puede ser global o pertenecer a la compañía asociada a la API key.\n- `fiscal_position_id` debe pertenecer a la compañía asociada a la API key.\n- Las cuentas contables e impuestos de las líneas deben pertenecer a la compañía asociada a la API key.\n- La precisión decimal de `price_unit`, `quantity` y `discount` se valida con las precisiones configuradas en Odoo.\n- Se validan los IDs de `partner`, `payment term`, `payment method line`, `fiscal position`, `account` y `tax`.\n- El número de factura debe ser único dentro del grupo lógico de tipos cliente o proveedor.\n- La unicidad del número también queda reforzada a nivel de base de datos para evitar duplicados concurrentes.\n\n## Códigos de error\n- `INVALID_API_KEY`: autenticación fallida\n- `INVALID_PARAMETERS`: error de validación\n- `DUPLICATE_INVOICE_NUMBER`: número de factura ya existente\n- `DUPLICATE_KEY_VALUE`: conflicto por clave única\n- `INTERNAL_SERVER_ERROR`: error inesperado\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -51,7 +55,109 @@
       }
     },
     "schemas": {
-      "InvoiceLineSchema": {
+      "ValidationErrorItem": {
+        "type": "object",
+        "description": "Elemento individual de error de validación.",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "loc": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "input": {}
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "description": "Envelope de error estándar de la API.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiErrorResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "validation_errors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ValidationErrorItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "InvoiceCreateSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al crear una factura.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer"
+              },
+              "erp_id": {
+                "type": "integer"
+              },
+              "values": {
+                "type": "object"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InvoiceLineCreateRequest": {
         "type": "object",
         "required": [
           "name",
@@ -65,7 +171,7 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "description": "Descripción de la línea de factura."
+            "description": "Descripción de la línea de factura. Se recortan los espacios al inicio y al final antes de validar."
           },
           "quantity": {
             "type": "number",
@@ -77,34 +183,36 @@
           },
           "discount": {
             "type": "number",
-            "description": "Descuento en porcentaje (opcional)."
+            "description": "Descuento de la línea."
           },
           "account_id": {
             "type": "integer",
-            "description": "ID de la cuenta contable."
+            "minimum": 1,
+            "description": "ID de la cuenta contable (>0). Debe pertenecer a la compañía asociada a la API key."
           },
           "tax_ids": {
             "type": "array",
             "items": {
               "type": "integer"
             },
-            "description": "Lista de IDs de impuestos (opcional)."
+            "description": "Lista de impuestos aplicados. Todos deben pertenecer a la compañía asociada a la API key."
           },
           "quantity_erp": {
             "type": "number",
-            "description": "Cantidad ERP. Obligatorio, pero admite valor `null`.",
-            "nullable": true
+            "nullable": true,
+            "description": "Cantidad ERP. Es obligatorio informar la clave aunque pueda ser `null`."
           },
           "extra_operations_erp": {
             "type": "number",
-            "description": "Operaciones extra ERP. Obligatorio, pero admite valor `null`.",
-            "nullable": true
+            "nullable": true,
+            "description": "Operaciones extra ERP. Es obligatorio informar la clave aunque pueda ser `null`."
           },
           "special_electricity_tax": {
             "type": "boolean",
-            "description": "Impuesto especial de electricidad (opcional)."
+            "description": "Marca de impuesto especial de electricidad."
           }
-        }
+        },
+        "additionalProperties": false
       },
       "InvoiceCreateRequest": {
         "type": "object",
@@ -133,17 +241,17 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "description": "Número de factura."
+            "description": "Número de factura. Se recortan los espacios al inicio y al final antes de validar."
           },
           "partner_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID del partner en Odoo (>0)."
+            "description": "ID del partner (>0)."
           },
           "journal_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID del diario contable (>0). Debe ser de tipo 'sale' o 'purchase'."
+            "description": "ID del diario. Debe ser `sale` o `purchase`, estar sincronizado con ERP y pertenecer a la compañía asociada a la API key."
           },
           "invoice_date": {
             "type": "string",
@@ -152,15 +260,15 @@
           },
           "amount_untaxed": {
             "type": "number",
-            "description": "Importe base imponible."
+            "description": "Base imponible ERP."
           },
           "amount_tax": {
             "type": "number",
-            "description": "Importe de impuestos."
+            "description": "Importe de impuestos ERP."
           },
           "amount_total": {
             "type": "number",
-            "description": "Importe total."
+            "description": "Importe total ERP."
           },
           "move_type": {
             "type": "string",
@@ -170,7 +278,7 @@
               "in_invoice",
               "in_refund"
             ],
-            "description": "Tipo de movimiento/factura."
+            "description": "Tipo de movimiento contable."
           },
           "date": {
             "type": "string",
@@ -180,39 +288,40 @@
           "invoice_payment_term_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID del plazo de pago (>0)."
+            "description": "ID del plazo de pago (>0). Debe ser global o pertenecer a la compañía asociada a la API key."
           },
           "preferred_payment_method_line_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID del método de pago preferido (>0)."
+            "description": "ID del método de pago preferido (>0). Debe pertenecer a la compañía asociada a la API key."
           },
           "fiscal_position_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID de la posición fiscal (>0)."
+            "description": "ID de la posición fiscal (>0). Debe pertenecer a la compañía asociada a la API key."
           },
           "ref": {
             "type": "string",
             "maxLength": 64,
-            "description": "Referencia. Obligatorio para facturas de proveedor."
+            "description": "Referencia de proveedor. Obligatoria para `in_invoice` y `in_refund`. Se recortan los espacios al inicio y al final antes de validar."
           },
           "invoice_line_ids": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/InvoiceLineSchema"
+              "$ref": "#/components/schemas/InvoiceLineCreateRequest"
             },
-            "description": "Líneas de factura (opcional pero no puede estar vacío si se proporciona)."
+            "description": "Líneas de factura. Si se informa, no puede ser una lista vacía."
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   },
   "paths": {
     "/invoices": {
       "post": {
-        "summary": "Crear Factura",
-        "description": "Crea una factura (cliente o proveedor).\n\nValidaciones:\n- El diario debe ser de tipo `sale` o `purchase`.\n- El diario debe tener habilitada la sincronización ERP (`pnt_synchronization_erp`).\n- Para facturas de proveedor (`in_invoice`, `in_refund`), el campo `ref` es obligatorio.\n- En facturas de cliente (`out_invoice`, `out_refund`), `date` e `invoice_date` deben ser iguales.\n- El método de pago (`preferred_payment_method_line_id`) debe ser coherente con el diario: `inbound` para ventas, `outbound` para compras.\n- La precisión decimal de `price_unit`, `quantity` y `discount` se valida según la configuración de Odoo.\n- Si se proporcionan líneas, no pueden estar vacías y la base imponible total no puede ser 0.\n",
+        "summary": "Crear factura",
+        "description": "Crea y publica una factura de cliente o proveedor (`account.move`).\n\nEl endpoint valida el cuerpo JSON con `InvoiceCreateSchema`, recorta los strings de entrada visibles para el contrato y delega en el modelo `account.move` la validación de diario, relaciones, unicidad y precisión decimal, crea el movimiento y lo publica automáticamente.\n",
         "operationId": "create_invoice",
         "tags": [
           "Facturas"
@@ -229,26 +338,28 @@
                 "number": "FAC/2026/0001",
                 "partner_id": 123,
                 "journal_id": 5,
-                "invoice_date": "2026-02-04",
-                "amount_untaxed": 1000.0,
-                "amount_tax": 210.0,
-                "amount_total": 1210.0,
+                "invoice_date": "2026-04-02",
+                "amount_untaxed": 100.0,
+                "amount_tax": 0.0,
+                "amount_total": 100.0,
                 "move_type": "out_invoice",
-                "date": "2026-02-04",
+                "date": "2026-04-02",
                 "invoice_payment_term_id": 1,
                 "preferred_payment_method_line_id": 2,
                 "fiscal_position_id": 1,
+                "ref": "CUSTOMER REF",
                 "invoice_line_ids": [
                   {
                     "name": "Producto ejemplo",
-                    "quantity": 10,
+                    "quantity": 1,
                     "price_unit": 100.0,
+                    "discount": 0.0,
                     "account_id": 700,
-                    "quantity_erp": 10,
-                    "extra_operations_erp": 1,
                     "tax_ids": [
                       1
-                    ]
+                    ],
+                    "quantity_erp": 1,
+                    "extra_operations_erp": 0
                   }
                 ]
               }
@@ -260,6 +371,9 @@
             "description": "Factura creada correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCreateSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record created successfully",
@@ -271,31 +385,51 @@
                       "number": "FAC/2026/0001",
                       "partner_id": 123,
                       "journal_id": 5,
-                      "invoice_date": "2026-02-04",
+                      "invoice_date": "2026-04-02",
+                      "amount_untaxed": 100.0,
+                      "amount_tax": 0.0,
+                      "amount_total": 100.0,
                       "move_type": "out_invoice",
-                      "date": "2026-02-04"
+                      "date": "2026-04-02",
+                      "invoice_payment_term_id": 1,
+                      "preferred_payment_method_line_id": 2,
+                      "fiscal_position_id": 1,
+                      "ref": "CUSTOMER REF",
+                      "invoice_line_ids": [
+                        {
+                          "name": "Producto ejemplo",
+                          "quantity": 1,
+                          "price_unit": 100.0,
+                          "discount": 0.0,
+                          "account_id": 700,
+                          "tax_ids": [
+                            1
+                          ],
+                          "quantity_erp": 1,
+                          "extra_operations_erp": 0
+                        }
+                      ]
                     },
                     "metadata": [
                       {
                         "company_id": 1,
                         "company_name": "Compañía Principal",
+                        "pnt_erp_id": 5001,
                         "move_type": "out_invoice",
                         "journal_id": [
                           {
                             "id": 5,
-                            "display_name": "(nombre del registro)"
+                            "display_name": "Ventas"
                           }
                         ],
                         "partner_id": [
                           {
                             "id": 123,
-                            "display_name": "(nombre del registro)"
+                            "display_name": "Cliente API"
                           }
                         ],
-                        "invoice_date": "2026-02-04",
-                        "date": "2026-02-04",
-                        "number": "FAC/2026/0001",
-                        "pnt_erp_id": 5001,
+                        "invoice_date": "2026-04-02",
+                        "date": "2026-04-02",
                         "invoice_payment_term_id": [
                           {
                             "id": 1,
@@ -311,16 +445,23 @@
                         "fiscal_position_id": [
                           {
                             "id": 1,
-                            "display_name": "Régimen nacional"
+                            "display_name": "Posición fiscal"
                           }
                         ],
-                        "ref": false,
+                        "number": "FAC/2026/0001",
+                        "ref": "CUSTOMER REF",
                         "invoice_line_ids": [
                           {
                             "id": 3001,
                             "display_name": "Producto ejemplo"
                           }
-                        ]
+                        ],
+                        "pnt_amount_untaxed_erp_difference": 0.0,
+                        "pnt_amount_tax_erp_difference": 0.0,
+                        "pnt_amount_total_erp_difference": 0.0,
+                        "pnt_amount_untaxed_erp_discrepancy": false,
+                        "pnt_amount_tax_erp_discrepancy": false,
+                        "pnt_amount_total_erp_discrepancy": false
                       }
                     ]
                   }
@@ -332,6 +473,9 @@
             "description": "Solicitud incorrecta - Parámetros inválidos o errores de validación",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
                 "examples": {
                   "missing_field": {
                     "summary": "Campo obligatorio faltante",
@@ -342,18 +486,19 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "missing",
                             "loc": [
                               "pnt_erp_id"
                             ],
                             "msg": "Field required",
-                            "type": "missing"
+                            "input": {}
                           }
                         ]
                       }
                     }
                   },
                   "ref_required_for_vendor": {
-                    "summary": "ref obligatorio para facturas de proveedor",
+                    "summary": "`ref` obligatorio para proveedor",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -361,18 +506,19 @@
                       "data": {
                         "validation_errors": [
                           {
-                            "loc": [
-                              "ref"
-                            ],
-                            "msg": "ref is required for vendor bills/refunds",
-                            "type": "value_error"
+                            "type": "value_error",
+                            "loc": [],
+                            "msg": "Value error, ref is required for vendor bills/refunds",
+                            "input": {
+                              "move_type": "in_invoice"
+                            }
                           }
                         ]
                       }
                     }
                   },
-                  "invalid_journal_type": {
-                    "summary": "Diario no válido para facturas",
+                  "invalid_payment_method_consistency": {
+                    "summary": "Método de pago incoherente con el diario",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -380,18 +526,39 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
+                            "loc": [
+                              "preferred_payment_method_line_id"
+                            ],
+                            "msg": "Payment method must be inbound for sale journals",
+                            "input": 2
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_journal": {
+                    "summary": "Diario inválido o no sincronizado",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "value_error",
                             "loc": [
                               "journal_id"
                             ],
-                            "msg": "journal type must be 'sale' or 'purchase'",
-                            "type": "value_error"
+                            "msg": "Journal is not enabled for ERP synchronization",
+                            "input": 9
                           }
                         ]
                       }
                     }
                   },
-                  "journal_not_synced": {
-                    "summary": "Diario no habilitado para sincronización ERP",
+                  "invalid_account": {
+                    "summary": "Cuenta contable inexistente en línea",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -399,18 +566,21 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
                             "loc": [
-                              "journal_id"
+                              "invoice_line_ids",
+                              0,
+                              "account_id"
                             ],
-                            "msg": "journal is not enabled for ERP synchronization",
-                            "type": "value_error"
+                            "msg": "Invalid account_id: 99999999",
+                            "input": 99999999
                           }
                         ]
                       }
                     }
                   },
-                  "empty_lines": {
-                    "summary": "Líneas de factura vacías",
+                  "decimals_not_allowed": {
+                    "summary": "Demasiados decimales en una línea",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -418,60 +588,25 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
                             "loc": [
-                              "invoice_line_ids"
+                              "invoice_line_ids",
+                              0,
+                              "price_unit"
                             ],
-                            "msg": "invoice_line_ids cannot be empty if provided",
-                            "type": "value_error"
+                            "msg": "Amount has 5 decimals; allowed 2",
+                            "input": 100.12345
                           }
                         ]
                       }
                     }
                   },
-                  "foreign_key_violation": {
-                    "summary": "Violación de clave foránea",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_FOREIGN_KEY",
-                      "message": "Invalid foreign key reference: insert or update on table \"account_move\" violates foreign key constraint"
-                    }
-                  },
-                  "date_consistency": {
-                    "summary": "Fecha contable y de factura no coinciden (facturas de cliente)",
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "data": {
-                        "validation_errors": [
-                          {
-                            "loc": [
-                              "__root__"
-                            ],
-                            "msg": "date and invoice_date must be equal for customer invoices",
-                            "type": "value_error"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "payment_method_consistency": {
-                    "summary": "Método de pago incoherente con tipo de diario",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "data": {
-                        "validation_errors": [
-                          {
-                            "loc": [
-                              "__root__"
-                            ],
-                            "msg": "preferred_payment_method_line_id must be inbound for sale journals",
-                            "type": "value_error"
-                          }
-                        ]
-                      }
+                      "message": "Error description from Odoo"
                     }
                   }
                 }
@@ -479,9 +614,12 @@
             }
           },
           "401": {
-            "description": "No autorizado - API key inválida, ausente o expirada",
+            "description": "No autorizado - API key inválida o ausente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -491,24 +629,27 @@
             }
           },
           "409": {
-            "description": "Conflicto - ERP ID o número de factura duplicado",
+            "description": "Conflicto - Duplicidad de número de factura o clave única",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "examples": {
-                  "duplicate_erp_id": {
-                    "summary": "ERP ID duplicado",
-                    "value": {
-                      "success": false,
-                      "error_code": "DUPLICATE_KEY_VALUE",
-                      "message": "Record with provided key already exists: duplicate key value violates unique constraint 'account_move_pnt_erp_id_uniq'"
-                    }
-                  },
                   "duplicate_invoice_number": {
                     "summary": "Número de factura duplicado",
                     "value": {
                       "success": false,
                       "error_code": "DUPLICATE_INVOICE_NUMBER",
-                      "message": "invoice number 'FAC/2026/0001' already exists for types ['out_invoice', 'out_refund']"
+                      "message": "Invoice number already exists: FAC/2026/0001"
+                    }
+                  },
+                  "duplicate_erp_id": {
+                    "summary": "ERP ID duplicado",
+                    "value": {
+                      "success": false,
+                      "error_code": "DUPLICATE_KEY_VALUE",
+                      "message": "Record with provided key already exists: duplicate key value violates unique constraint \"account_move_pnt_erp_id_gt0_uniq\""
                     }
                   }
                 }
@@ -516,13 +657,16 @@
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }

@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Cuentas Bancarias",
-    "description": "API para obtener y crear cuentas bancarias asociadas a proveedores en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación, incluyendo dígitos de control inválidos (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para consultar y crear cuentas bancarias asociadas a partners en Odoo.\n\n## Autenticación\nTodos los endpoints requieren la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success` y `message`. Cuando aplica, también incluyen `data` o `error_code`.\n\n## Saneado del número de cuenta\nEn GET y POST, `acc_number` se recorta mediante los schemas Pydantic. En GET, el modelo normaliza el número de cuenta antes de buscarlo. Esto permite localizar la misma cuenta aunque el IBAN llegue formateado con espacios.\n\n## Validación de entrada\nLos parámetros de entrada se validan mediante esquemas Pydantic (`BankGetSchema` para GET, `BankCreateSchema` para POST). En POST, además, el modelo valida que `partner_id` exista, rechaza cuentas duplicadas para el mismo partner y valida el checksum del IBAN antes de crear.\n\n## Códigos de error\n- `INVALID_API_KEY`: autenticación fallida\n- `RECORD_NOT_FOUND`: recurso no encontrado\n- `INVALID_PARAMETERS`: error de validación, `partner_id` inexistente o checksum IBAN inválido\n- `DUPLICATE_KEY_VALUE`: conflicto por clave única\n- `INTERNAL_SERVER_ERROR`: error inesperado\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -51,20 +55,180 @@
       }
     },
     "schemas": {
-      "BankAccount": {
+      "ValidationErrorItem": {
         "type": "object",
+        "description": "Elemento individual de error de validación.",
         "properties": {
-          "odoo_id": {
-            "type": "integer"
-          },
-          "erp_id": {
-            "type": "integer"
-          },
-          "acc_number": {
+          "type": {
             "type": "string"
           },
-          "partner_id": {
-            "type": "integer"
+          "loc": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "input": {}
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "description": "Envelope de error estándar de la API.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiErrorResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "validation_errors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ValidationErrorItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "BankGetSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al consultar una cuenta bancaria.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer"
+              },
+              "erp_id": {
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ]
+                  }
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "company_id": {
+                      "type": "integer"
+                    },
+                    "company_name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "BankCreateSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al crear una cuenta bancaria.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer"
+              },
+              "erp_id": {
+                "type": "integer"
+              },
+              "values": {
+                "type": "object",
+                "properties": {
+                  "acc_number": {
+                    "type": "string"
+                  },
+                  "partner_id": {
+                    "type": "integer"
+                  },
+                  "pnt_erp_id": {
+                    "type": "integer"
+                  },
+                  "bank_id": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "company_id": {
+                      "type": "integer"
+                    },
+                    "company_name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -92,15 +256,16 @@
             "minimum": 1,
             "description": "ID del partner en Odoo (>0)."
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   },
   "paths": {
     "/banks/{partner_id}": {
       "get": {
-        "summary": "Obtener Cuenta Bancaria",
-        "description": "Recupera una cuenta bancaria específica para un partner dado por número de cuenta.\n\nEl endpoint busca una coincidencia exacta del número de cuenta saneado asociado al partner especificado. Devuelve 404 si no existe ningún registro coincidente.\n",
+        "summary": "Obtener cuenta bancaria",
+        "description": "Obtiene una cuenta bancaria específica de un partner a partir de su número de cuenta.\n\nEl endpoint valida ``partner_id`` y ``acc_number``, elimina espacios al inicio y al final de ``acc_number`` y delega la búsqueda al modelo, que normaliza el número antes de compararlo. Devuelve 404 cuando no encuentra ningún registro coincidente.\n",
         "operationId": "get_bank_number",
         "tags": [
           "Cuentas Bancarias"
@@ -110,9 +275,10 @@
             "name": "partner_id",
             "in": "path",
             "required": true,
-            "description": "El ID de la base de datos de Odoo del partner",
+            "description": "ID del partner en Odoo. Debe ser mayor que 0.",
             "schema": {
               "type": "integer",
+              "minimum": 1,
               "example": 45
             }
           },
@@ -120,9 +286,11 @@
             "name": "acc_number",
             "in": "query",
             "required": true,
-            "description": "El número de cuenta bancaria a buscar (será saneado)",
+            "description": "Número de cuenta bancaria a buscar. Se eliminan los espacios al inicio y al final antes de validar y el modelo normaliza el número para la búsqueda.",
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
               "example": "ES9121000418450200051332"
             }
           }
@@ -132,6 +300,9 @@
             "description": "Cuenta bancaria encontrada correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankGetSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record found successfully",
@@ -151,13 +322,41 @@
             }
           },
           "400": {
-            "description": "Solicitud incorrecta - Error de validación de Odoo",
+            "description": "Solicitud incorrecta - Error de validación de parámetros o error de Odoo",
             "content": {
               "application/json": {
-                "example": {
-                  "success": false,
-                  "error_code": "INVALID_PARAMETERS",
-                  "message": "Error description from Odoo"
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "examples": {
+                  "validation_error": {
+                    "summary": "Error de validación de parámetros",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "string_too_long",
+                            "loc": [
+                              "acc_number"
+                            ],
+                            "msg": "String should have at most 64 characters",
+                            "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Error description from Odoo"
+                    }
+                  }
                 }
               }
             }
@@ -166,6 +365,9 @@
             "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -178,6 +380,9 @@
             "description": "No encontrado - La cuenta bancaria no existe para este partner",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "RECORD_NOT_FOUND",
@@ -187,13 +392,16 @@
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }
@@ -203,8 +411,8 @@
     },
     "/banks": {
       "post": {
-        "summary": "Crear Cuenta Bancaria",
-        "description": "Crea una nueva cuenta bancaria para un proveedor.\n\nEl endpoint identifica y asigna automáticamente el banco a partir del número de cuenta si es posible.\n\nNo se permiten campos adicionales en el cuerpo de la solicitud (extra fields forbidden).\n\nDevuelve 409 si ya existe una cuenta duplicada.\n",
+        "summary": "Crear cuenta bancaria",
+        "description": "Crea una nueva cuenta bancaria para un partner.\n\nValida el cuerpo JSON con `BankCreateSchema`, recorta `acc_number` y delega la creación al modelo `res.partner.bank`, que valida la existencia de `partner_id`, identifica y asigna automáticamente el banco a partir del IBAN y rechaza duplicados funcionales para el mismo partner. No se permiten campos adicionales en el cuerpo de la solicitud. Si el banco se resuelve correctamente a partir del IBAN, `bank_id` se incluye en `values` de la respuesta.\n",
         "operationId": "create_bank_number",
         "tags": [
           "Cuentas Bancarias"
@@ -229,6 +437,9 @@
             "description": "Cuenta bancaria creada correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankCreateSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record created successfully",
@@ -238,7 +449,8 @@
                     "values": {
                       "acc_number": "ES7620770024003102575766",
                       "partner_id": 45,
-                      "pnt_erp_id": 70003
+                      "pnt_erp_id": 70003,
+                      "bank_id": 12
                     },
                     "metadata": [
                       {
@@ -252,12 +464,15 @@
             }
           },
           "400": {
-            "description": "Solicitud incorrecta - Parámetros de entrada inválidos, errores de validación o dígitos de control inválidos.\nEste error ocurre cuando:\n- Faltan campos obligatorios o están vacíos\n- Los valores de los campos no cumplen con las reglas de validación\n- El número de cuenta bancaria tiene dígitos de control inválidos (falló la validación IBAN)\n",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos, `partner_id` inexistente o checksum IBAN inválido.",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
                 "examples": {
                   "validation_error": {
-                    "summary": "Error de validación por campo vacío",
+                    "summary": "Error de validación de parámetros",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -265,7 +480,7 @@
                       "data": {
                         "validation_errors": [
                           {
-                            "type": "value_error",
+                            "type": "string_too_short",
                             "loc": [
                               "acc_number"
                             ],
@@ -277,7 +492,15 @@
                     }
                   },
                   "invalid_checksum": {
-                    "summary": "Dígitos de control inválidos en el número de cuenta bancaria",
+                    "summary": "Checksum IBAN inválido",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Invalid IBAN checksum for account number: ES0021000418450200051332"
+                    }
+                  },
+                  "invalid_partner": {
+                    "summary": "partner_id inexistente",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -286,10 +509,11 @@
                         "validation_errors": [
                           {
                             "loc": [
-                              "acc_number"
+                              "partner_id"
                             ],
-                            "msg": "Invalid checksum digits",
-                            "type": "value_error"
+                            "msg": "Invalid partner_id: 99999999",
+                            "type": "value_error",
+                            "input": 99999999
                           }
                         ]
                       }
@@ -303,6 +527,9 @@
             "description": "No autorizado - API key inválida, ausente o expirada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -312,25 +539,44 @@
             }
           },
           "409": {
-            "description": "Conflicto - Ya existe una cuenta bancaria con este número para este partner",
+            "description": "Conflicto - Ya existe una cuenta bancaria funcionalmente duplicada o una clave única ya usada",
             "content": {
               "application/json": {
-                "example": {
-                  "success": false,
-                  "error_code": "DUPLICATE_KEY_VALUE",
-                  "message": "Record with provided key already exists: duplicate key value violates unique constraint"
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
+                "examples": {
+                  "duplicate_partner_account": {
+                    "summary": "Cuenta duplicada para el mismo partner",
+                    "value": {
+                      "success": false,
+                      "error_code": "DUPLICATE_KEY_VALUE",
+                      "message": "Bank account already exists for this partner and account number"
+                    }
+                  },
+                  "duplicate_erp_id": {
+                    "summary": "ERP ID duplicado",
+                    "value": {
+                      "success": false,
+                      "error_code": "DUPLICATE_KEY_VALUE",
+                      "message": "Record with provided key already exists: duplicate key value violates unique constraint \"res_partner_bank_pnt_erp_id_gt0_uniq\""
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }

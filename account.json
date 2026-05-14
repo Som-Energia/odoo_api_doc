@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Cuentas Contables",
-    "description": "API para obtener y crear cuentas contables en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento Multi-Compañía\nAl crear una cuenta, la API crea automáticamente la misma cuenta (sin ERP ID) en todas las demás compañías donde aún no exista. Las cuentas replicadas se devuelven dentro de `metadata[0].new_accounts_by_company`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para consultar y crear cuentas contables en Odoo.\n\n## Autenticación\nTodos los endpoints requieren la cabecera `X-API-Key`. La compañía utilizada por el endpoint se obtiene a partir de la API key válida.\n\n## Formato de respuesta\nLas respuestas incluyen `success` y `message`. Cuando aplica, también incluyen `data` o `error_code`.\n\n## Creación multi-compañía\nAl crear una cuenta, la API la crea en la compañía asociada a la API key y replica la misma cuenta sin `pnt_erp_id` en las demás compañías donde todavía no exista una cuenta con el mismo código. Las cuentas replicadas solo aparecen en `metadata[0].new_accounts_by_company` cuando se ha creado alguna réplica.\n\n## Normalización visible\nEn GET, `code` se recorta antes de buscar. En POST, `name` y `code` se recortan antes de crear la cuenta y antes de evaluar las réplicas multi-compañía.\n\n## Códigos de error\n- `INVALID_API_KEY`: autenticación fallida\n- `INVALID_PARAMETERS`: error de validación\n- `RECORD_NOT_FOUND`: recurso no encontrado\n- `DUPLICATE_KEY_VALUE`: conflicto por clave única\n- `INTERNAL_SERVER_ERROR`: error inesperado\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -51,6 +55,213 @@
       }
     },
     "schemas": {
+      "ValidationErrorItem": {
+        "type": "object",
+        "description": "Elemento individual de error de validación.",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "loc": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "input": {}
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "description": "Envelope de error estándar de la API.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiErrorResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "validation_errors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ValidationErrorItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AccountGetSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al consultar una cuenta contable.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer"
+              },
+              "erp_id": {
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ]
+                  }
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "company_id": {
+                      "type": "integer"
+                    },
+                    "company_name": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AccountCreateSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al crear una cuenta contable.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer"
+              },
+              "erp_id": {
+                "type": "integer"
+              },
+              "values": {
+                "type": "object",
+                "properties": {
+                  "pnt_erp_id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "company_id": {
+                      "type": "integer"
+                    },
+                    "company_name": {
+                      "type": "string"
+                    },
+                    "new_accounts_by_company": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "odoo_id": {
+                            "type": "integer"
+                          },
+                          "erp_id": {
+                            "oneOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ]
+                              }
+                            ]
+                          },
+                          "company": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "AccountCreateRequest": {
         "type": "object",
         "required": [
@@ -66,25 +277,26 @@
           },
           "name": {
             "type": "string",
-            "description": "Nombre de la cuenta contable.",
+            "description": "Nombre de la cuenta contable. Se recortan los espacios al inicio y al final antes de crear.",
             "minLength": 1,
             "maxLength": 256
           },
           "code": {
             "type": "string",
-            "description": "Código de la cuenta contable.",
+            "description": "Código de la cuenta contable. Se recortan los espacios al inicio y al final antes de crear.",
             "minLength": 1,
             "maxLength": 64
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   },
   "paths": {
     "/accounts/{code}": {
       "get": {
-        "summary": "Obtener Cuenta",
-        "description": "Obtiene una cuenta específica por su código.\n\nEl endpoint busca una coincidencia exacta del código de cuenta saneado.\nLos espacios en blanco se recortan del código antes de buscar.\nDevuelve 404 si no existe ningún registro coincidente.\n",
+        "summary": "Obtener cuenta contable",
+        "description": "Obtiene una cuenta contable por su código dentro de la compañía asociada a la API key.\n\nEl endpoint valida `code` con `AccountGetSchema`, elimina los espacios al inicio y al final del código y busca una coincidencia exacta sobre `code_store` en la compañía resuelta desde la API key. Devuelve 404 cuando no encuentra ningún registro.\n",
         "operationId": "get_account",
         "tags": [
           "Cuentas"
@@ -94,9 +306,11 @@
             "name": "code",
             "in": "path",
             "required": true,
-            "description": "El código de cuenta a buscar (se recortarán los espacios en blanco)",
+            "description": "Código de la cuenta contable. Los espacios al inicio y al final se eliminan antes de buscar.",
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
               "example": "700000"
             }
           }
@@ -106,13 +320,16 @@
             "description": "Cuenta encontrada correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountGetSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record found successfully",
                   "data": {
                     "odoo_id": 123,
                     "erp_id": 50001,
-                    "name": "700000 - Ingresos por ventas",
+                    "name": "Ingresos por ventas",
                     "metadata": [
                       {
                         "company_id": 1,
@@ -127,21 +344,52 @@
             }
           },
           "400": {
-            "description": "Solicitud incorrecta - Error de validación de Odoo",
+            "description": "Solicitud incorrecta - Código de cuenta inválido o error de validación de Odoo",
             "content": {
               "application/json": {
-                "example": {
-                  "success": false,
-                  "error_code": "INVALID_PARAMETERS",
-                  "message": "Error description from Odoo"
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "examples": {
+                  "validation_error": {
+                    "summary": "Error de validación de parámetros",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "string_too_long",
+                            "loc": [
+                              "code"
+                            ],
+                            "msg": "String should have at most 64 characters",
+                            "input": "700000..."
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Error description from Odoo"
+                    }
+                  }
                 }
               }
             }
           },
           "401": {
-            "description": "No autorizado - API key inválida, ausente o expirada",
+            "description": "No autorizado - API key inválida o ausente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -154,6 +402,9 @@
             "description": "No encontrado - La cuenta con este código no existe",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "RECORD_NOT_FOUND",
@@ -163,13 +414,16 @@
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }
@@ -179,8 +433,8 @@
     },
     "/accounts": {
       "post": {
-        "summary": "Crear Cuenta",
-        "description": "Crea una nueva cuenta contable.\n\nEl endpoint valida los datos de entrada y crea un nuevo registro de cuenta.\nAdemás, crea automáticamente la misma cuenta (sin ERP ID) en todas las demás compañías donde no exista.\nLas cuentas replicadas se devuelven dentro de `metadata[0].new_accounts_by_company`.\n\nNo se permiten campos adicionales en el cuerpo de la solicitud (extra fields forbidden).\n\nDevuelve 409 si ya existe una cuenta duplicada.\n",
+        "summary": "Crear cuenta contable",
+        "description": "Crea una cuenta contable en la compañía asociada a la API key.\n\nEl endpoint valida el cuerpo JSON con `AccountCreateSchema`, recorta `name` y `code`, crea la cuenta en la compañía de la API key y replica el registro en las demás compañías donde todavía no exista una cuenta con el mismo código. Las réplicas se crean sin `pnt_erp_id` y solo se devuelven dentro de `metadata[0].new_accounts_by_company` cuando se ha creado alguna. No se permiten campos adicionales en la solicitud.\n",
         "operationId": "create_account",
         "tags": [
           "Cuentas"
@@ -205,6 +459,9 @@
             "description": "Cuenta creada correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountCreateSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record created successfully",
@@ -212,6 +469,7 @@
                     "odoo_id": 124,
                     "erp_id": 50001,
                     "values": {
+                      "pnt_erp_id": 50001,
                       "name": "Ingresos por ventas",
                       "code": "700000"
                     },
@@ -219,8 +477,6 @@
                       {
                         "company_id": 1,
                         "company_name": "Compañía Principal",
-                        "code": "700000",
-                        "name": "Ingresos por ventas",
                         "new_accounts_by_company": [
                           {
                             "odoo_id": 125,
@@ -229,9 +485,7 @@
                             "metadata": [
                               {
                                 "company_id": 2,
-                                "company_name": "Compañía Secundaria",
-                                "code": "700000",
-                                "name": "Ingresos por ventas"
+                                "company_name": "Compañía Secundaria"
                               }
                             ]
                           }
@@ -244,9 +498,12 @@
             }
           },
           "400": {
-            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o errores de validación",
+            "description": "Solicitud incorrecta - Parámetros de entrada inválidos o error de validación de Odoo",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
                 "examples": {
                   "missing_field": {
                     "summary": "Campo obligatorio faltante",
@@ -286,15 +543,26 @@
                         ]
                       }
                     }
+                  },
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Error description from Odoo"
+                    }
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "No autorizado - API key inválida, ausente o expirada",
+            "description": "No autorizado - API key inválida o ausente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -304,25 +572,31 @@
             }
           },
           "409": {
-            "description": "Conflicto - Ya existe una cuenta con este ERP ID o código",
+            "description": "Conflicto - Ya existe un registro que incumple una restricción única",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "DUPLICATE_KEY_VALUE",
-                  "message": "Duplicate key value: duplicate key value violates unique constraint \"account_account_pnt_erp_id_uniq\""
+                  "message": "Record with provided key already exists: duplicate key value violates unique constraint \"account_account_pnt_erp_id_gt0_uniq\""
                 }
               }
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }

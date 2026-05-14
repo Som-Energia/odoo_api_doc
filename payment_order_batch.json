@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Remesas Agrupadas",
-    "description": "API para crear remesas agrupadas (`account.batch.payment`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento de la Remesa Agrupada\nCada línea de la petición agrupa varias facturas mediante `invoice_ids` y genera un único `account.payment` agrupado por línea. Posteriormente, todos los pagos creados se agrupan en una remesa `account.batch.payment`.\n\n## Validaciones Destacadas\n- `batch_type` es obligatorio y debe ser `inbound` o `outbound`.\n- Para `inbound`, `sdd_required_collection_date` es obligatorio.\n- Para `outbound`, `sdd_required_collection_date` no se utiliza.\n- `destination_journal_id` debe existir y ser un diario de tipo `bank`.\n- `payment_method_id` es obligatorio y debe referenciar una línea de método de pago (`account.payment.method.line`) cuyo `payment_type` coincida con `batch_type`.\n- Cada línea debe contener al menos una factura en `invoice_ids`.\n- Todas las facturas de una misma línea deben pertenecer al mismo partner.\n- Para `inbound`, el importe de cada línea y el total de cabecera deben ser positivos.\n- Para `outbound`, el importe de cada línea y el total de cabecera deben ser negativos.\n- La suma firmada de las facturas de cada grupo debe coincidir exactamente con el importe de la línea.\n- La suma de las líneas debe coincidir exactamente con `amount`.\n- El `batch_type` final de `account.batch.payment` debe coincidir con el solicitado en la API.\n\n## Particularidades de la Respuesta\n- La respuesta devuelve `odoo_id` y `erp_id` a `false`.\n- Los IDs reales de los `account.payment` creados se devuelven en `metadata[].created_payment_ids`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear remesas agrupadas (`account.batch.payment`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento de la Remesa Agrupada\nCada línea de la petición agrupa varias facturas mediante `invoice_ids` y genera un único `account.payment` agrupado por línea. Posteriormente, todos los pagos creados se agrupan en una remesa `account.batch.payment`.\n\n## Validaciones Destacadas\n- `batch_type` es obligatorio y debe ser `inbound` o `outbound`.\n- Para `inbound`, `sdd_required_collection_date` es obligatorio.\n- Para `outbound`, `sdd_required_collection_date` no se utiliza.\n- `destination_journal_id` debe existir y ser un diario de tipo `bank`.\n- `payment_method_line_id` es obligatorio y debe referenciar una línea de método de pago (`account.payment.method.line`) cuyo `payment_type` coincida con `batch_type`.\n- Cada línea debe contener al menos una factura en `invoice_ids`.\n- Todas las facturas de una misma línea deben pertenecer al mismo partner.\n- Para `inbound`, el importe de cada línea y el total de cabecera deben ser positivos.\n- Para `outbound`, el importe de cada línea y el total de cabecera deben ser negativos.\n- La suma firmada de las facturas de cada grupo debe coincidir exactamente con el importe de la línea.\n- La suma de las líneas debe coincidir exactamente con `amount`.\n- El `batch_type` final de `account.batch.payment` debe coincidir con el solicitado en la API.\n\n## Particularidades de la Respuesta\n- La respuesta devuelve `odoo_id` y `erp_id` a `false`.\n- Los IDs reales de los `account.payment` creados se devuelven en `metadata[].created_payment_ids`.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -83,7 +87,7 @@
           "destination_journal_id",
           "name",
           "amount",
-          "payment_method_id",
+          "payment_method_line_id",
           "lines"
         ],
         "properties": {
@@ -125,11 +129,6 @@
             "type": "number",
             "description": "Importe total firmado de la remesa. Debe coincidir con la suma de las líneas y respetar el signo exigido por `batch_type`."
           },
-          "payment_method_id": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "ID de la línea de método de pago (`account.payment.method.line`) en Odoo. Su `payment_type` debe coincidir con `batch_type`."
-          },
           "lines": {
             "type": "array",
             "minItems": 1,
@@ -137,6 +136,11 @@
               "$ref": "#/components/schemas/PaymentOrderBatchLineSchema"
             },
             "description": "Lista de grupos de facturas a incluir en la remesa. Cada línea genera un pago agrupado."
+          },
+          "payment_method_line_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la línea de método de pago (`account.payment.method.line`) en Odoo. Su `payment_type` debe coincidir con `batch_type`."
           }
         },
         "additionalProperties": false
@@ -144,10 +148,10 @@
     }
   },
   "paths": {
-    "/payment_order_batches": {
+    "/payment_orders/batches": {
       "post": {
         "summary": "Crear Remesa Agrupada",
-        "description": "Crea una remesa agrupada (`account.batch.payment`) y los pagos agrupados (`account.payment`) asociados.\n\nValidaciones específicas:\n1. **Diario Destino**: `destination_journal_id` debe existir y ser de tipo `bank`.\n2. **Método de Pago**: `payment_method_id` es obligatorio y debe coincidir con `batch_type`.\n3. **Agrupación por Línea**: `invoice_ids` agrupa varias facturas en un único pago.\n4. **Mismo Partner**: todas las facturas de una misma línea deben pertenecer al mismo partner.\n5. **Signo de Importes**: `inbound` exige importes positivos; `outbound`, importes negativos.\n6. **Totales**: la suma firmada de cada grupo debe coincidir con el importe de la línea y la suma de líneas debe coincidir con `amount`.\n7. **Tipo Final del Batch**: la remesa final debe mantener el mismo `batch_type` solicitado en la API.\n",
+        "description": "Crea una remesa agrupada (`account.batch.payment`) y los pagos agrupados (`account.payment`) asociados.\n\nValidaciones específicas:\n1. **Diario Destino**: `destination_journal_id` debe existir y ser de tipo `bank`.\n2. **Método de Pago**: `payment_method_line_id` es obligatorio y debe coincidir con `batch_type`.\n3. **Agrupación por Línea**: `invoice_ids` agrupa varias facturas en un único pago.\n4. **Mismo Partner**: todas las facturas de una misma línea deben pertenecer al mismo partner.\n5. **Signo de Importes**: `inbound` exige importes positivos; `outbound`, importes negativos.\n6. **Totales**: la suma firmada de cada grupo debe coincidir con el importe de la línea y la suma de líneas debe coincidir con `amount`.\n7. **Tipo Final del Batch**: la remesa final debe mantener el mismo `batch_type` solicitado en la API.\n",
         "operationId": "create_payment_order_batch",
         "tags": [
           "Remesas Agrupadas"
@@ -170,7 +174,6 @@
                     "destination_journal_id": 7,
                     "name": "BATCH-FEB-IN-001",
                     "amount": 1500.5,
-                    "payment_method_id": 12,
                     "lines": [
                       {
                         "invoice_ids": [
@@ -185,7 +188,8 @@
                         ],
                         "amount": 500.25
                       }
-                    ]
+                    ],
+                    "payment_method_line_id": 12
                   }
                 },
                 "outbound": {
@@ -196,23 +200,23 @@
                     "date": "2026-02-15",
                     "destination_journal_id": 7,
                     "name": "BATCH-FEB-OUT-001",
-                    "amount": -850.0,
-                    "payment_method_id": 15,
+                    "amount": -850,
                     "lines": [
                       {
                         "invoice_ids": [
                           201,
                           202
                         ],
-                        "amount": -500.0
+                        "amount": -500
                       },
                       {
                         "invoice_ids": [
                           203
                         ],
-                        "amount": -350.0
+                        "amount": -350
                       }
-                    ]
+                    ],
+                    "payment_method_line_id": 15
                   }
                 }
               }
@@ -238,7 +242,6 @@
                       "destination_journal_id": 7,
                       "name": "BATCH-FEB-IN-001",
                       "amount": 1500.5,
-                      "payment_method_id": 12,
                       "lines": [
                         {
                           "invoice_ids": [
@@ -253,7 +256,8 @@
                           ],
                           "amount": 500.25
                         }
-                      ]
+                      ],
+                      "payment_method_line_id": 12
                     },
                     "metadata": [
                       {
@@ -304,7 +308,7 @@
                         "validation_errors": [
                           {
                             "loc": [
-                              "payment_method_id"
+                              "payment_method_line_id"
                             ],
                             "msg": "Payment method must be 'outbound', but it is 'inbound'",
                             "type": "value_error"
@@ -423,4 +427,3 @@
     }
   }
 }
-

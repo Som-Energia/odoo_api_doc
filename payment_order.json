@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Remesas de Pagos/Cobros",
-    "description": "API para crear remesas (account.batch.payment) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Remesa\n- `inbound`: Remesa de cobros (Domiciliación bancaria)\n- `outbound`: Remesa de pagos (Transferencia de crédito)\n\n## Validaciones Destacadas\n- El diario de la remesa se obtiene automáticamente de la configuración de la compañía (`pnt_default_journal_id`).\n- `journal_destiny` debe ser un diario bancario válido existente en Odoo.\n- Las facturas incluidas deben existir y tener estado de pago `not_paid` o `partial`.\n- Para cada factura se valida el residual de líneas del tipo correcto (`asset_receivable` para inbound, `liability_payable` para outbound).\n- El importe de cada línea debe coincidir exactamente con el importe residual validado de la factura.\n- La suma de los residuales de todas las facturas debe coincidir con el campo `amount` de la cabecera.\n- Para remesas `inbound`, el campo `sdd_required_collection_date` es obligatorio.\n- `method_id` es opcional en la petición.\n- El método de pago se selecciona automáticamente priorizando SEPA (`sepa_direct_debit` para inbound, `sepa_ct` para outbound).\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `MISSING_CONFIGURATION`: Configuración del servidor faltante (estado 422)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear remesas (account.batch.payment) y consultar su estado de procesamiento en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Tipos de Remesa\n- `inbound`: Remesa de cobros (Domiciliación bancaria)\n- `outbound`: Remesa de pagos (Transferencia de crédito)\n\n## Validaciones Destacadas\n- El diario de la remesa se obtiene automáticamente de la configuración de la compañía (`pnt_default_journal_id`).\n- `destination_journal_id` debe ser un diario bancario válido existente en Odoo.\n- `payment_method_line_id` es obligatorio y debe referenciar una línea de método de pago.\n- Las facturas incluidas deben existir y tener estado de pago `not_paid` o `partial`.\n- Para cada factura se valida el residual de líneas del tipo correcto (`asset_receivable` para inbound, `liability_payable` para outbound).\n- El importe de cada línea debe coincidir exactamente con el importe residual validado de la factura.\n- La suma de los residuales de todas las facturas debe coincidir con el campo `amount` de la cabecera.\n- Para remesas `inbound`, el campo `sdd_required_collection_date` es obligatorio.\n\n## Estado de Procesamiento\nEl endpoint GET `/payment_orders/{erp_id}/status` permite consultar el estado de procesamiento asíncrono de una remesa creada previamente. Los estados posibles son:\n- `processing`: la remesa está siendo procesada por jobs en cola.\n- `done`: todos los jobs terminaron y la remesa está confirmada.\n- `error`: algún job falló o la remesa no alcanzó el estado esperado.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Violación de clave foránea (estado 400)\n- `MISSING_CONFIGURATION`: Configuración del servidor faltante (estado 422)\n- `RECORD_NOT_FOUND`: Remesa no encontrada (estado 404)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -65,11 +69,12 @@
           },
           "amount": {
             "type": "number",
-            "minimum": 0,
             "exclusiveMinimum": true,
+            "minimum": 0,
             "description": "Importe a pagar/cobrar. Debe ser estrictamente >0 y coincidir con el residual."
           }
-        }
+        },
+        "additionalProperties": false
       },
       "PaymentOrderCreateRequest": {
         "type": "object",
@@ -77,9 +82,10 @@
           "pnt_erp_id",
           "batch_type",
           "date",
-          "journal_destiny",
+          "destination_journal_id",
           "name",
           "amount",
+          "payment_method_line_id",
           "lines"
         ],
         "properties": {
@@ -104,28 +110,24 @@
           "sdd_required_collection_date": {
             "type": "string",
             "format": "date",
-            "description": "Fecha solicitada de cobro (obligatorio para inbound)."
+            "nullable": true,
+            "description": "Fecha solicitada de cobro (obligatorio para inbound, opcional para outbound)."
           },
-          "journal_destiny": {
+          "destination_journal_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "ID del diario destino en Odoo (>0)."
+            "description": "ID del diario destino en Odoo (>0). Debe ser un diario bancario."
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "description": "Referencia de la remesa (Total Remesa)."
+            "description": "Referencia de la remesa."
           },
           "amount": {
             "type": "number",
             "minimum": 0,
-            "description": "Importe total de la remesa (debe coincidir con la suma de las líneas)."
-          },
-          "method_id": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "ID del método de pago de Odoo (opcional)."
+            "description": "Importe total de la remesa (debe coincidir con la suma de las líneas). Se valida precisión decimal."
           },
           "lines": {
             "type": "array",
@@ -134,6 +136,71 @@
               "$ref": "#/components/schemas/PaymentOrderLineSchema"
             },
             "description": "Lista de facturas a incluir en la remesa."
+          },
+          "payment_method_line_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "ID de la línea de método de pago en Odoo (>0). Debe pertenecer al diario origen configurado en la compañía."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PaymentOrderStatusResponse": {
+        "type": "object",
+        "properties": {
+          "odoo_id": {
+            "type": "integer",
+            "description": "ID interno de la remesa en Odoo."
+          },
+          "erp_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              }
+            ],
+            "description": "ID del sistema ERP o `false` si no asignado."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "done",
+              "error"
+            ],
+            "description": "Estado del procesamiento: `processing` (en curso), `done` (completado y confirmado), `error` (fallido o no confirmado)."
+          },
+          "processed": {
+            "type": "boolean",
+            "description": "Indica si todos los jobs de cola terminaron."
+          },
+          "confirmed": {
+            "type": "boolean",
+            "description": "Indica si la remesa alcanzó el estado `sent` o `reconciled`."
+          },
+          "message_detail": {
+            "type": "string",
+            "description": "Mensaje descriptivo adicional (presente solo en estados de error)."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Detalle de errores de jobs (presente solo cuando `status` es `error` y hay jobs fallidos)."
           }
         }
       }
@@ -143,7 +210,7 @@
     "/payment_orders": {
       "post": {
         "summary": "Crear Remesa de Cobros/Pagos",
-        "description": "Crea una remesa (account.batch.payment) y sus pagos asociados.\n\nValidaciones específicas:\n1. **Diario Origen**: Se usa el configurado en la compañía (`pnt_default_journal_id`).\n2. **Diario Destino**: Se valida `journal_destiny`.\n3. **Facturas**: Se verifica estado (`not_paid`/`partial`) y coincidencia de importe con residual.\n4. **Totales**: Se valida que la suma de líneas coincida con el total de la remesa.\n5. **Método de Pago**: Se auto-selecciona `sepa_direct_debit` (inbound) o `sepa_ct` (outbound).\n",
+        "description": "Crea una remesa (`account.batch.payment`) y sus pagos asociados.\n\nValidaciones específicas:\n1. **Diario Origen**: Se usa el configurado en la compañía (`pnt_default_journal_id`).\n2. **Diario Destino**: Se valida `destination_journal_id` como diario bancario.\n3. **Método de Pago**: `payment_method_line_id` es obligatorio.\n4. **Facturas**: Se verifica estado (`not_paid`/`partial`) y coincidencia de importe con residual.\n5. **Totales**: Se valida que la suma de líneas coincida con el total de la remesa.\n6. **Fecha cobro**: `sdd_required_collection_date` es obligatorio para remesas `inbound`.\n",
         "operationId": "create_payment_order",
         "tags": [
           "Payment Orders"
@@ -163,7 +230,7 @@
                     "batch_type": "inbound",
                     "date": "2026-02-15",
                     "sdd_required_collection_date": "2026-02-20",
-                    "journal_destiny": 7,
+                    "destination_journal_id": 7,
                     "name": "REMESA-FEB-001",
                     "amount": 1500.5,
                     "lines": [
@@ -175,7 +242,8 @@
                         "invoice_id": 102,
                         "amount": 1000.25
                       }
-                    ]
+                    ],
+                    "payment_method_line_id": 12
                   }
                 },
                 "outbound": {
@@ -184,16 +252,16 @@
                     "pnt_erp_id": 9002,
                     "batch_type": "outbound",
                     "date": "2026-02-15",
-                    "journal_destiny": 7,
+                    "destination_journal_id": 7,
                     "name": "REMESA-FEB-002",
-                    "amount": 250.0,
-                    "method_id": 3,
+                    "amount": 250,
                     "lines": [
                       {
                         "invoice_id": 201,
-                        "amount": 250.0
+                        "amount": 250
                       }
-                    ]
+                    ],
+                    "payment_method_line_id": 3
                   }
                 }
               }
@@ -216,9 +284,10 @@
                       "batch_type": "inbound",
                       "date": "2026-02-15",
                       "sdd_required_collection_date": "2026-02-20",
-                      "journal_destiny": 7,
+                      "destination_journal_id": 7,
                       "name": "REMESA-FEB-001",
-                      "amount": 1500.5
+                      "amount": 1500.5,
+                      "payment_method_line_id": 12
                     },
                     "metadata": [
                       {
@@ -311,44 +380,6 @@
                         ]
                       }
                     }
-                  },
-                  "invalid_payment_state": {
-                    "summary": "Estado de pago de factura inválido",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "data": {
-                        "validation_errors": [
-                          {
-                            "loc": [
-                              "lines"
-                            ],
-                            "msg": "Invoice 101 has invalid payment state: 'paid'. Expected: not_paid or partial",
-                            "type": "value_error"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "no_payment_method": {
-                    "summary": "Sin método de pago disponible para el diario",
-                    "value": {
-                      "success": false,
-                      "error_code": "INVALID_PARAMETERS",
-                      "message": "Validation error in request parameters",
-                      "data": {
-                        "validation_errors": [
-                          {
-                            "loc": [
-                              "journal_id"
-                            ],
-                            "msg": "No payment method available for batch_type 'inbound' in journal 'Banco'",
-                            "type": "value_error"
-                          }
-                        ]
-                      }
-                    }
                   }
                 }
               }
@@ -386,6 +417,151 @@
                   "success": false,
                   "error_code": "MISSING_CONFIGURATION",
                   "message": "Required server configuration is missing: pnt_default_journal_id"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INTERNAL_SERVER_ERROR",
+                  "message": "An internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment_orders/{erp_id}/status": {
+      "get": {
+        "summary": "Consultar Estado de Remesa",
+        "description": "Obtiene el estado público del procesamiento asíncrono de una remesa.\n\nLa remesa se identifica por su `pnt_erp_id`. El endpoint consulta los jobs de cola asociados y devuelve:\n- `processing`: si hay jobs pendientes o en ejecución.\n- `done`: si todos los jobs terminaron y la remesa está en estado `sent` o `reconciled`.\n- `error`: si algún job falló, o si los jobs terminaron pero la remesa no alcanzó un estado confirmado.\n",
+        "operationId": "get_payment_order_status",
+        "tags": [
+          "Payment Orders"
+        ],
+        "parameters": [
+          {
+            "name": "erp_id",
+            "in": "path",
+            "required": true,
+            "description": "ERP ID de la remesa a consultar",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 9001
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado de la remesa recuperado correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PaymentOrderStatusResponse"
+                    }
+                  }
+                },
+                "examples": {
+                  "processing": {
+                    "summary": "Remesa en procesamiento",
+                    "value": {
+                      "success": true,
+                      "message": "Record found successfully",
+                      "data": {
+                        "odoo_id": 305,
+                        "erp_id": 9001,
+                        "status": "processing",
+                        "processed": false,
+                        "confirmed": false
+                      }
+                    }
+                  },
+                  "done": {
+                    "summary": "Remesa completada y confirmada",
+                    "value": {
+                      "success": true,
+                      "message": "Record found successfully",
+                      "data": {
+                        "odoo_id": 305,
+                        "erp_id": 9001,
+                        "status": "done",
+                        "processed": true,
+                        "confirmed": true
+                      }
+                    }
+                  },
+                  "error": {
+                    "summary": "Remesa con errores de procesamiento",
+                    "value": {
+                      "success": true,
+                      "message": "Record found successfully",
+                      "data": {
+                        "odoo_id": 305,
+                        "erp_id": 9001,
+                        "status": "error",
+                        "processed": false,
+                        "confirmed": false,
+                        "message_detail": "The payment order processing has failed.",
+                        "errors": [
+                          {
+                            "type": "odoo.exceptions.ValidationError",
+                            "message": "Invoice 101 is already paid"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud incorrecta - Estado no disponible para esta remesa",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_PARAMETERS",
+                  "message": "Payment order status is not available for this batch."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "INVALID_API_KEY",
+                  "message": "Invalid or missing API key"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado - Remesa o jobs no encontrados",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error_code": "RECORD_NOT_FOUND",
+                  "message": "Record not found: 9001"
                 }
               }
             }

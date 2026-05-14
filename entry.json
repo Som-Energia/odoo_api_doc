@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Asientos Contables",
-    "description": "API para crear asientos contables en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Validaciones destacadas\n- La precisión de los importes de `debit` y `credit` se valida según los decimales permitidos por la moneda de la compañía.\n- El balance de las líneas (debe/haber) lo valida Odoo al crear el asiento.\n- El diario debe ser de tipo general (`type = general`).\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `INVALID_FOREIGN_KEY`: Referencia inexistente (estado 400)\n- `DUPLICATE_KEY_VALUE`: Recurso duplicado (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear asientos contables en Odoo.\n\n## Autenticación\nTodos los endpoints requieren la cabecera `X-API-Key`.\n\n## Formato de respuesta\nLas respuestas incluyen `success` y `message`. Cuando aplica, también incluyen `data` o `error_code`.\n\n## Validaciones destacadas\n- La precisión de `debit` y `credit` se valida según los decimales permitidos por la moneda de la compañía.\n- Cada línea debe informar exactamente un importe positivo entre `debit` y `credit`.\n- Los strings `number`, `ref` y `lines[].name` se recortan antes de validar y persistir.\n- El diario debe existir, ser de tipo `general`, estar habilitado para sincronización ERP y pertenecer a la compañía asociada a la API key.\n- Los `account_id` de las líneas se validan antes de crear el asiento y deben estar disponibles en la compañía asociada a la API key.\n- Los `partner_id` de las líneas se validan por existencia antes de crear el asiento.\n- El balance del asiento y otras reglas contables las valida Odoo al crear y publicar el movimiento.\n\n## Códigos de error\n- `INVALID_API_KEY`: autenticación fallida\n- `INVALID_PARAMETERS`: error de validación\n- `DUPLICATE_KEY_VALUE`: conflicto por clave única\n- `INTERNAL_SERVER_ERROR`: error inesperado\n",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -51,8 +55,111 @@
       }
     },
     "schemas": {
-      "EntryLineSchema": {
+      "ValidationErrorItem": {
         "type": "object",
+        "description": "Elemento individual de error de validación.",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "loc": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "input": {}
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "description": "Envelope de error estándar de la API.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiErrorResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "validation_errors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ValidationErrorItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "EntryCreateSuccessResponse": {
+        "type": "object",
+        "description": "Respuesta satisfactoria al crear un asiento contable.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "odoo_id": {
+                "type": "integer"
+              },
+              "erp_id": {
+                "type": "integer"
+              },
+              "values": {
+                "type": "object"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "EntryLineCreateRequest": {
+        "type": "object",
+        "description": "Línea de asiento validada con `EntryLineCreateSchema`. La regla cruzada exige exactamente un importe positivo entre `debit` y `credit`.",
         "required": [
           "account_id"
         ],
@@ -70,19 +177,20 @@
           "name": {
             "type": "string",
             "maxLength": 64,
-            "description": "Etiqueta/Descripción de la línea."
+            "description": "Etiqueta o descripción de la línea. Se recortan los espacios al inicio y al final antes de validar."
           },
           "debit": {
             "type": "number",
             "minimum": 0,
-            "description": "Importe en el debe (>=0)."
+            "description": "Importe en el debe (>=0). Exactamente uno entre `debit` y `credit` debe ser mayor que 0."
           },
           "credit": {
             "type": "number",
             "minimum": 0,
-            "description": "Importe en el haber (>=0)."
+            "description": "Importe en el haber (>=0). Exactamente uno entre `debit` y `credit` debe ser mayor que 0."
           }
-        }
+        },
+        "additionalProperties": false
       },
       "EntryCreateRequest": {
         "type": "object",
@@ -90,7 +198,8 @@
           "pnt_erp_id",
           "number",
           "date",
-          "journal_id"
+          "journal_id",
+          "lines"
         ],
         "properties": {
           "pnt_erp_id": {
@@ -100,8 +209,9 @@
           },
           "number": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 64,
-            "description": "Número del asiento."
+            "description": "Número del asiento. Se recortan los espacios al inicio y al final antes de validar."
           },
           "date": {
             "type": "string",
@@ -116,25 +226,26 @@
           "ref": {
             "type": "string",
             "maxLength": 64,
-            "description": "Referencia del asiento."
+            "description": "Referencia del asiento. Se recortan los espacios al inicio y al final antes de validar."
           },
           "lines": {
             "type": "array",
+            "minItems": 1,
             "items": {
-              "$ref": "#/components/schemas/EntryLineSchema"
+              "$ref": "#/components/schemas/EntryLineCreateRequest"
             },
-            "description": "Líneas del asiento. Opcional; si se omite o se envía `null`, el asiento se crea sin líneas.",
-            "nullable": true
+            "description": "Líneas del asiento. Debe informarse al menos una y cada línea debe tener exactamente un importe positivo entre `debit` y `credit`."
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   },
   "paths": {
     "/entries": {
       "post": {
-        "summary": "Crear Asiento",
-        "description": "Crea un asiento contable (`account.move`).\n\nValidaciones:\n- `debit` y `credit` deben respetar el número de decimales permitidos por la moneda de la compañía.\n- El balance (debe = haber) se valida por Odoo durante la creación.\n- El diario debe ser de tipo `general`.\n- El diario debe tener habilitada la sincronización ERP (`pnt_synchronization_erp`).\n",
+        "summary": "Crear asiento contable",
+        "description": "Crea y publica un asiento contable (`account.move`).\n\nEl endpoint valida el cuerpo JSON con `EntryCreateSchema`, recorta los strings visibles del contrato y delega en el modelo `account.move` la validación de diario, relaciones y precisión decimal, crea el movimiento y lo publica automáticamente.\n",
         "operationId": "create_entry",
         "tags": [
           "Asientos"
@@ -148,22 +259,22 @@
               },
               "example": {
                 "pnt_erp_id": 1368,
-                "number": "ASIENTO/2026/001",
-                "date": "2026-02-02",
+                "number": "ENTRY/2026/001",
+                "date": "2026-04-02",
                 "journal_id": 10,
-                "ref": "123",
+                "ref": "ENTRY TEST",
                 "lines": [
                   {
                     "account_id": 1227,
                     "partner_id": 1669,
-                    "name": "aass",
-                    "debit": 123
+                    "name": "Debit line",
+                    "debit": 100.0
                   },
                   {
-                    "account_id": 1227,
+                    "account_id": 1228,
                     "partner_id": 1669,
-                    "name": "aass",
-                    "credit": 123
+                    "name": "Credit line",
+                    "credit": 100.0
                   }
                 ]
               }
@@ -175,6 +286,9 @@
             "description": "Asiento creado correctamente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryCreateSuccessResponse"
+                },
                 "example": {
                   "success": true,
                   "message": "Record created successfully",
@@ -183,22 +297,22 @@
                     "erp_id": 1368,
                     "values": {
                       "pnt_erp_id": 1368,
-                      "number": "ASIENTO/2026/001",
-                      "date": "2026-02-02",
+                      "number": "ENTRY/2026/001",
+                      "date": "2026-04-02",
                       "journal_id": 10,
-                      "ref": "123",
+                      "ref": "ENTRY TEST",
                       "lines": [
                         {
                           "account_id": 1227,
                           "partner_id": 1669,
-                          "name": "aass",
-                          "debit": 123
+                          "name": "Debit line",
+                          "debit": 100.0
                         },
                         {
-                          "account_id": 1227,
+                          "account_id": 1228,
                           "partner_id": 1669,
-                          "name": "aass",
-                          "credit": 123
+                          "name": "Credit line",
+                          "credit": 100.0
                         }
                       ]
                     },
@@ -206,9 +320,9 @@
                       {
                         "company_id": 1,
                         "company_name": "Compañía Principal",
-                        "number": "ASIENTO/2026/001",
-                        "ref": "123",
-                        "date": "2026-02-02",
+                        "number": "ENTRY/2026/001",
+                        "ref": "ENTRY TEST",
+                        "date": "2026-04-02",
                         "journal_id": [
                           {
                             "id": 10,
@@ -230,15 +344,15 @@
                                 "display_name": "Partner"
                               }
                             ],
-                            "debit": 123,
-                            "credit": 0,
-                            "name": "aass"
+                            "debit": 100.0,
+                            "credit": 0.0,
+                            "name": "Debit line"
                           },
                           {
                             "id": 3002,
                             "account_id": [
                               {
-                                "id": 1227,
+                                "id": 1228,
                                 "display_name": "Cuenta contable"
                               }
                             ],
@@ -248,9 +362,9 @@
                                 "display_name": "Partner"
                               }
                             ],
-                            "debit": 0,
-                            "credit": 123,
-                            "name": "aass"
+                            "debit": 0.0,
+                            "credit": 100.0,
+                            "name": "Credit line"
                           }
                         ]
                       }
@@ -261,9 +375,12 @@
             }
           },
           "400": {
-            "description": "Solicitud incorrecta - Parámetros inválidos o errores de validación",
+            "description": "Solicitud incorrecta - Parámetros inválidos o errores de validación de negocio",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
                 "examples": {
                   "missing_field": {
                     "summary": "Campo obligatorio faltante",
@@ -274,18 +391,19 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "missing",
                             "loc": [
                               "pnt_erp_id"
                             ],
                             "msg": "Field required",
-                            "type": "missing"
+                            "input": {}
                           }
                         ]
                       }
                     }
                   },
                   "decimals_not_allowed": {
-                    "summary": "Demasiados decimales en debit/credit",
+                    "summary": "Demasiados decimales en debit o credit",
                     "value": {
                       "success": false,
                       "error_code": "INVALID_PARAMETERS",
@@ -293,32 +411,36 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
                             "loc": [
                               "lines",
                               0,
                               "debit"
                             ],
-                            "msg": "Amount has 4 decimals; allowed (2)",
-                            "type": "value_error"
+                            "msg": "Amount has 3 decimals; allowed 2",
+                            "input": 100.123
                           }
                         ]
                       }
                     }
                   },
-                  "invalid_foreign_key": {
-                    "summary": "Diario inexistente",
+                  "invalid_partner": {
+                    "summary": "Partner inexistente en una línea",
                     "value": {
                       "success": false,
-                      "error_code": "INVALID_FOREIGN_KEY",
-                      "message": "Invalid foreign key reference: account.journal(9999)",
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
                             "loc": [
-                              "journal_id"
+                              "lines",
+                              0,
+                              "partner_id"
                             ],
-                            "msg": "Invalid journal_id",
-                            "type": "value_error"
+                            "msg": "Invalid partner_id: 99999999",
+                            "input": 99999999
                           }
                         ]
                       }
@@ -333,11 +455,12 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
                             "loc": [
                               "journal_id"
                             ],
                             "msg": "Journal type must be 'general', but it is 'sale'",
-                            "type": "value_error"
+                            "input": 12
                           }
                         ]
                       }
@@ -352,14 +475,69 @@
                       "data": {
                         "validation_errors": [
                           {
+                            "type": "value_error",
                             "loc": [
                               "journal_id"
                             ],
-                            "msg": "journal is not enabled for ERP synchronization",
-                            "type": "value_error"
+                            "msg": "Journal is not enabled for ERP synchronization",
+                            "input": 13
                           }
                         ]
                       }
+                    }
+                  },
+                  "invalid_account": {
+                    "summary": "Cuenta contable inexistente en una línea",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "value_error",
+                            "loc": [
+                              "lines",
+                              0,
+                              "account_id"
+                            ],
+                            "msg": "Invalid account_id: 99999999",
+                            "input": 99999999
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "invalid_line_amounts": {
+                    "summary": "Línea sin importe o con ambos importes",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Validation error in request parameters",
+                      "data": {
+                        "validation_errors": [
+                          {
+                            "type": "value_error",
+                            "loc": [
+                              "lines",
+                              0
+                            ],
+                            "msg": "Value error, Exactly one of debit or credit must be greater than 0",
+                            "input": {
+                              "account_id": 1227,
+                              "name": "Invalid line"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "odoo_error": {
+                    "summary": "Error de validación de Odoo",
+                    "value": {
+                      "success": false,
+                      "error_code": "INVALID_PARAMETERS",
+                      "message": "Error description from Odoo"
                     }
                   }
                 }
@@ -367,9 +545,12 @@
             }
           },
           "401": {
-            "description": "No autorizado - API key inválida, ausente o expirada",
+            "description": "No autorizado - API key inválida o ausente",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INVALID_API_KEY",
@@ -379,25 +560,31 @@
             }
           },
           "409": {
-            "description": "Conflicto - ERP ID duplicado",
+            "description": "Conflicto - Ya existe un registro que incumple una restricción única",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "DUPLICATE_KEY_VALUE",
-                  "message": "Record with provided key already exists: duplicate key value violates unique constraint \"account_move_pnt_erp_id_uniq\""
+                  "message": "Record with provided key already exists: duplicate key value violates unique constraint \"account_move_pnt_erp_id_gt0_uniq\""
                 }
               }
             }
           },
           "500": {
-            "description": "Error interno del servidor - Ocurrió un error inesperado",
+            "description": "Error interno del servidor - Se devuelve el texto de la excepción capturada",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                },
                 "example": {
                   "success": false,
                   "error_code": "INTERNAL_SERVER_ERROR",
-                  "message": "An internal server error occurred"
+                  "message": "Unexpected error message"
                 }
               }
             }

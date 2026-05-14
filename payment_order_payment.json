@@ -2,8 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Remesas desde Pagos",
-    "description": "API para crear remesas (`account.batch.payment`) a partir de pagos existentes (`account.payment`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento\nEste endpoint no crea pagos nuevos. Recibe una lista plana de IDs de `account.payment` ya registrados, valida que puedan agruparse y crea una remesa entrante (`batch_type=inbound`).\n\n## Validaciones Destacadas\n- `pnt_erp_id` es obligatorio, positivo y no debe existir previamente en otra remesa.\n- `date` y `sdd_required_collection_date` son obligatorios.\n- `destination_journal_id` debe existir, pertenecer a la compañía de la API key y ser un diario de tipo `bank`.\n- `payment_method_line_id` debe referenciar una línea de método de pago (`account.payment.method.line`) entrante y de la compañía.\n- Todos los pagos de `payment_ids` deben existir, pertenecer a la compañía de la API key y no tener `batch_payment_id`.\n- Todos los pagos deben ser `inbound`, usar la misma línea de método de pago indicada y el mismo diario asociado a esa línea.\n- `amount` debe coincidir con la suma de `amount_company_currency_signed` de los pagos, respetando la precisión de la moneda de la compañía.\n- El nombre almacenado en la remesa se guarda con prefijo `FRAC. `.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_ERP_ID`: ERP id de remesa duplicado (estado 409)\n- `DUPLICATE_KEY_VALUE`: Otra clave única duplicada (estado 409)\n- `INVALID_FOREIGN_KEY`: Referencia a clave externa inválida (estado 400)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para crear remesas (`account.batch.payment`) a partir de pagos existentes (`account.payment`) en Odoo.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Comportamiento\nEste endpoint no crea pagos nuevos. Recibe una lista plana de IDs de `account.payment` ya registrados, valida que puedan agruparse y crea una remesa entrante (`batch_type=inbound`).\n\n## Validaciones Destacadas\n- `pnt_erp_id` es obligatorio, positivo y no debe existir previamente en otra remesa.\n- `date` y `sdd_required_collection_date` son obligatorios.\n- `destination_journal_id` debe existir, pertenecer a la compañía de la API key y ser un diario de tipo `bank`.\n- `payment_method_line_id` debe referenciar una línea de método de pago (`account.payment.method.line`) entrante y de la compañía.\n- Todos los pagos de `payment_ids` deben existir, pertenecer a la compañía de la API key y no tener `batch_payment_id`.\n- Todos los pagos deben ser `inbound`, usar la misma línea de método de pago indicada y el mismo diario asociado a esa línea.\n- `amount` debe coincidir con la suma de `amount_company_currency_signed` de los pagos, respetando la precisión de la moneda de la compañía.\n- El nombre almacenado en la remesa se guarda con prefijo `FRAC. `.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_PARAMETERS`: Error de validación (estado 400)\n- `DUPLICATE_ERP_ID`: ERP id de remesa duplicado (estado 409)\n- `DUPLICATE_KEY_VALUE`: Otra clave única duplicada (estado 409)\n- `INVALID_FOREIGN_KEY`: Referencia a clave externa inválida (estado 400)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n\n## Contract Note\nValidation and functional messages are returned in English.",
     "version": "1.0.0",
+    "license": {
+      "name": "LGPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    },
     "contact": {
       "name": "Punt Sistemes"
     }
@@ -138,7 +142,7 @@
                 "destination_journal_id": 7,
                 "payment_method_line_id": 12,
                 "name": "REM-2026-001",
-                "amount": 3045.0,
+                "amount": 3045,
                 "payment_ids": [
                   101,
                   102,
@@ -166,7 +170,7 @@
                       "destination_journal_id": 7,
                       "payment_method_line_id": 12,
                       "name": "REM-2026-001",
-                      "amount": 3045.0,
+                      "amount": 3045,
                       "payment_ids": [
                         101,
                         102,
