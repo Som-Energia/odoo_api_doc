@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "API de Gestión de Entidades Comunes",
-    "description": "API para recuperar registros de Odoo por ERP ID en múltiples tipos de entidades\ny actualizar los ERP IDs para registros existentes.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Entidades Permitidas\n- `account`: account.account (Cuentas contables)\n- `bank`: res.partner.bank (Cuentas bancarias)\n- `city`: res.city (Ciudades)\n- `country`: res.country (Países)\n- `entry`: account.move (Asientos contables)\n- `invoice`: account.move (Facturas)\n- `partner`: res.partner (Partners)\n- `payment`: account.payment (Pagos)\n- `state`: res.country.state (Provincias/Estados)\n\n## Saneado y normalización\n- El parámetro `entity` se recorta y se normaliza a minúsculas antes de validar la entidad permitida y resolver el modelo de Odoo.\n\n## Notas sobre campos de respuesta\n- El campo `erp_id` puede ser un entero (cuando está asignado) o `false` (booleano JSON) cuando el registro no tiene ERP ID asignado.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_ENTITY`: Tipo de entidad inválido (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `DUPLICATE_ERP_ID`: El ERP ID ya existe (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
+    "description": "API para recuperar registros de Odoo por ERP ID en múltiples tipos de entidades\ny actualizar los ERP IDs para registros existentes.\n\n## Autenticación\nTodos los endpoints requieren autenticación mediante API key a través de la cabecera `X-API-Key`.\n\n## Formato de Respuesta\nTodas las respuestas siguen un formato estándar con los campos `success`, `message`, y opcionalmente `data` o `error_code`.\n\n## Entidades Permitidas\n- `account`: account.account (Cuentas contables)\n- `bank`: res.partner.bank (Cuentas bancarias)\n- `city`: res.city (Ciudades)\n- `country`: res.country (Países)\n- `entry`: account.move (Asientos contables)\n- `invoice`: account.move (Facturas)\n- `partner`: res.partner (Partners)\n- `partner_address`: res.partner (Direcciones de partners, solo consulta)\n- `payment`: account.payment (Pagos)\n- `state`: res.country.state (Provincias/Estados)\n\n## Saneado y normalización\n- El parámetro `entity` se recorta y se normaliza a minúsculas antes de validar la entidad permitida y resolver el modelo de Odoo.\n- En las consultas, `partner` busca únicamente partners raíz y `partner_address` únicamente direcciones o contactos hijos.\n- `partner_address` está disponible solo para consultas; no se admite en la operación PATCH.\n\n## Notas sobre campos de respuesta\n- El campo `erp_id` puede ser un entero (cuando está asignado) o `false` (booleano JSON) cuando el registro no tiene ERP ID asignado.\n\n## Códigos de Error\n- `INVALID_API_KEY`: Autenticación fallida\n- `INVALID_ENTITY`: Tipo de entidad inválido (estado 400)\n- `RECORD_NOT_FOUND`: Recurso no encontrado (estado 404)\n- `DUPLICATE_ERP_ID`: El ERP ID ya existe (estado 409)\n- `INTERNAL_SERVER_ERROR`: Error inesperado (estado 500)\n",
     "version": "1.0.0",
     "license": {
       "name": "LGPL-3.0-or-later",
@@ -122,7 +122,7 @@
     "/entities": {
       "get": {
         "summary": "Obtener Lista de Entidades",
-        "description": "Recupera la lista de tipos de entidades permitidos y sus correspondientes modelos de Odoo.\n",
+        "description": "Recupera la lista de tipos de entidades permitidos y sus correspondientes modelos de Odoo. `partner_address` está disponible solo para consultas.\n",
         "operationId": "get_list_models",
         "tags": [
           "Entidades"
@@ -144,7 +144,10 @@
                     "city": "res.city",
                     "country": "res.country",
                     "entry": "account.move",
+                    "invoice": "account.move",
                     "partner": "res.partner",
+                    "partner_address": "res.partner",
+                    "payment": "account.payment",
                     "state": "res.country.state"
                   }
                 }
@@ -181,7 +184,7 @@
     "/entities/{entity}/{erp_id}": {
       "get": {
         "summary": "Obtener Registro por ERP ID",
-        "description": "Recupera el ID de Odoo para un tipo de entidad y ERP ID dados.\n\nDevuelve 404 si no existe ningún registro coincidente.\n",
+        "description": "Recupera el ID de Odoo para un tipo de entidad y ERP ID dados. Para `partner`, busca solo partners raíz; para `partner_address`, solo direcciones o contactos hijos.\n\nDevuelve 404 si no existe ningún registro coincidente.\n",
         "operationId": "get_record_info",
         "tags": [
           "Entidades"
@@ -191,7 +194,7 @@
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "El tipo de entidad (account, bank, city, country, entry, invoice, partner, payment o state)",
+            "description": "El tipo de entidad (account, bank, city, country, entry, invoice, partner, partner_address, payment o state)",
             "schema": {
               "type": "string",
               "enum": [
@@ -202,6 +205,7 @@
                 "entry",
                 "invoice",
                 "partner",
+                "partner_address",
                 "payment",
                 "state"
               ],
@@ -303,7 +307,7 @@
             "name": "entity",
             "in": "path",
             "required": true,
-            "description": "El tipo de entidad (account, bank, city, country, entry, invoice, partner, payment o state)",
+            "description": "El tipo de entidad. `partner_address` no se admite en esta operación PATCH.",
             "schema": {
               "type": "string",
               "enum": [
@@ -426,3 +430,4 @@
     }
   }
 }
+
